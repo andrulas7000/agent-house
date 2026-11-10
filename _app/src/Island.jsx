@@ -226,9 +226,9 @@ function Paper({ open, news, today, onClose, onGo }) {
   const [lead, ...rest] = news;
   const date = today ? new Date(`${today}T12:00:00`).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
   return (
-    <dialog className="paper" ref={ref} onClose={onClose} aria-label="Notificaciones de hoy" {...backdrop}>
+    <dialog className="paper" ref={ref} onClose={onClose} aria-label="Novedades de hoy" {...backdrop}>
       <header>
-        <h2>Notificaciones de la isla</h2>
+        <h2>Novedades de la isla</h2>
         <p>{date}</p>
       </header>
       {lead && (
@@ -522,8 +522,8 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
       {agents?.length > 0 && (
         <footer className="dock">
           {headline && (
-            <button type="button" className="ticker frame" onClick={() => setPaper(true)} aria-label={`Abrir las notificaciones de hoy. ${headline.text}`}>
-              <b>Notificaciones</b>
+            <button type="button" className="ticker frame" onClick={() => setPaper(true)} aria-label={`Abrir las novedades de hoy. ${headline.text}`}>
+              <b>Novedades</b>
               <span key={headline.text}>{headline.text}</span>
             </button>
           )}
