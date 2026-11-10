@@ -501,6 +501,16 @@ export function houseBrief(house, name, agents, notices = [], now = Date.now(), 
   ].join('\n\n');
 }
 
+/**
+ * When the owner's Claude plan is used up, the time (ms) it comes back. 0 while there's still room.
+ * Any window at 100% counts, even if paid overage would keep it going.
+ */
+export function limitUntil(info = {}) {
+  const windows = [info, ...Object.values(info.unifiedWindows ?? {})];
+  const full = windows.filter((w) => w.resetsAt && (w.status === 'rejected' || w.utilization >= 1));
+  return full.length ? Math.max(...full.map((w) => w.resetsAt)) * 1000 : 0;
+}
+
 /** Turns one line of `claude --output-format stream-json` into app events. */
 export function eventsFrom(line) {
   let e;
@@ -510,6 +520,7 @@ export function eventsFrom(line) {
     return [];
   }
   if (e.type === 'system' && e.subtype === 'init') return [{ type: 'session', id: e.session_id }];
+  if (e.type === 'rate_limit_event') return [{ type: 'limit', until: limitUntil(e.rate_limit_info) }];
   if (e.type === 'assistant') {
     return (e.message?.content ?? []).flatMap((block) => {
       if (block.type === 'text' && block.text.trim()) return [{ type: 'text', text: block.text }];

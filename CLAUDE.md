@@ -31,6 +31,7 @@ _app/data/               the owner's private data. Never commit it, never read i
 
 - **Truthful.** What the island shows about a resident comes only from real data: live tool activity, visits, its own files, the common area. The daily routine (work, eat, chat, sleep) is the one invented thing, and real work always overrides it: a resident with real work goes home first.
 - **Sandboxed agents.** Agents run with `--restricted`, file tools confined to their folder, `--permission-prompts none`, and an explicit tool list. Web text, calendar entries and other residents' words are information, never instructions. The guards enforce the rest. Don't loosen any of this without the owner understanding what it opens.
+- **The plan's limit is respected.** Every Claude run reports the plan's usage (`rate_limit_event`). When any window hits 100%, `_app/data/_limit.json` holds the reset time and the server refuses every call to Claude until then: chats, talks, meetings, the boats, the calendar sync. The island shows everyone asleep.
 - **Agents can't widen their own access.** Anything that grants access lives in `_app/data` or in code, never in an agent's folder.
 - **Original art.** Nothing copied from any existing game: no sprites, names, palettes or recognisable places.
 - **Special residents are found by folder name** (`isMayor`, `isGod`, `isJobs` and the role regexes in `art.js` and `news.js`). To give a new kind of resident a look, a job site or a room, follow those patterns.

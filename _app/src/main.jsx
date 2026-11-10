@@ -228,6 +228,7 @@ function App() {
         <Home
           key={slotOf(current.name)}
           agent={current}
+          asleep={house?.asleep}
           room={room}
           jobs={house?.jobs}
           onRoom={goRoom}

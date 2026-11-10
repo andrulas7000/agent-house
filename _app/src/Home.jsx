@@ -245,7 +245,7 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
   );
 }
 
-function Room({ look, working, phase, asleep, room: place }) {
+function Room({ look, working, phase, asleep, sleeping, room: place }) {
   const hostRef = useRef(null);
   const canvasRef = useRef(null);
   const [size, setSize] = useState(null);
@@ -269,8 +269,9 @@ function Room({ look, working, phase, asleep, room: place }) {
 
   const view = useMemo(() => {
     if (!size?.vw) return null;
-    // Whole device pixels per art pixel, the same rule as the island.
-    const fit = Math.min(((size.free - size.left) * size.dpr) / ROOM_MIN_WIDTH, (size.vh * size.dpr) / ROOM_MIN_HEIGHT);
+    // Whole device pixels per art pixel, the same rule as the island. Jobs' menu doesn't count against the width,
+    // or its rooms would come out smaller than everyone else's: the scene just packs in to the right of it.
+    const fit = Math.min((size.free * size.dpr) / ROOM_MIN_WIDTH, (size.vh * size.dpr) / ROOM_MIN_HEIGHT);
     const dev = Math.min(Math.floor(MAX_SCALE * size.dpr), Math.max(Math.ceil(MIN_SCALE * size.dpr), Math.floor(fit)));
     const s = dev / size.dpr;
     return { s, LW: Math.ceil(size.vw / s), LH: Math.ceil(size.vh / s), focus: Math.ceil(size.free / s), left: Math.ceil(size.left / s) };
@@ -281,11 +282,11 @@ function Room({ look, working, phase, asleep, room: place }) {
     if (!room) return undefined;
     const g = canvasRef.current.getContext('2d');
     const still = reducedMotion();
-    const frame = () => drawRoom(g, room, look, working, still ? 0 : performance.now(), entrance.current);
+    const frame = () => drawRoom(g, room, look, working, still ? 0 : performance.now(), entrance.current, sleeping);
     frame();
     const id = setInterval(frame, FRAME_MS);
     return () => clearInterval(id);
-  }, [room, look, working]);
+  }, [room, look, working, sleeping]);
 
   return (
     <div className="room-host" ref={hostRef} aria-hidden="true">
@@ -294,7 +295,7 @@ function Room({ look, working, phase, asleep, room: place }) {
   );
 }
 
-export default function Home({ agent, messages, chats, chatId, loaded, onOpenChat, onNewChat, onRenameChat, onDeleteChat, live, phase, level, onLevel, onSend, onStop, onLeave, room, jobs, onRoom, onJobs }) {
+export default function Home({ asleep, agent, messages, chats, chatId, loaded, onOpenChat, onNewChat, onRenameChat, onDeleteChat, live, phase, level, onLevel, onSend, onStop, onLeave, room, jobs, onRoom, onJobs }) {
   const slot = `${agent.name}|${room ?? ''}`; // the interview room keeps its own draft
   const [draft, setDraft] = useState(() => drafts.get(slot)?.draft ?? '');
   const [files, setFiles] = useState(() => drafts.get(slot)?.files ?? []);
@@ -315,11 +316,13 @@ export default function Home({ agent, messages, chats, chatId, loaded, onOpenCha
   const errorHere = live.error && (!live.chat || live.chat === chatId);
   const typing = shown < newest.length;
   const doneCount = agent.today?.items.filter((i) => i.status === 'done').length ?? 0;
-  const status = live.busy ? `${live.activity ?? 'Pensando'}…` : sinceVisit(agent.lastVisit);
+  const sleeping = Boolean(asleep) && !live.busy;
+  const wakes = asleep && new Date(asleep).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' });
+  const status = live.busy ? `${live.activity ?? 'Pensando'}…` : sleeping ? `Durmiendo hasta las ${wakes}` : sinceVisit(agent.lastVisit);
   const back = room ? (e) => onRoom(null, e) : onLeave;
   const facts = [JOB_ROOMS[room] ?? null, agent.streak ? `Racha de ${agent.streak} días` : null, agent.misses ? `${agent.misses} sin cumplir esta semana` : null, agent.waiting ? `${agent.waiting} ${agent.waiting === 1 ? 'nota' : 'notas'} en espera` : null].filter(Boolean);
   const uploading = files.some((f) => f.pending);
-  const canSend = !live.busy && !uploading && Boolean(draft.trim() || files.length);
+  const canSend = !live.busy && !sleeping && !uploading && Boolean(draft.trim() || files.length);
   const levelLabel = CLAUDE_LEVELS.find((l) => l.id === (level ?? defaultLevelOf(agent.name)))?.label;
 
   useEffect(() => { drafts.set(slot, { draft, files: files.filter((f) => !f.pending) }); }, [slot, draft, files]);
@@ -344,7 +347,7 @@ export default function Home({ agent, messages, chats, chatId, loaded, onOpenCha
 
   const submit = (text, attached = files.map((f) => f.path)) => {
     const clean = text.trim();
-    if ((!clean && !attached.length) || live.busy || uploading) return;
+    if ((!clean && !attached.length) || live.busy || sleeping || uploading) return;
     stick.current = true;
     setAtBottom(true);
     onSend(clean, attached);
@@ -390,7 +393,7 @@ export default function Home({ agent, messages, chats, chatId, loaded, onOpenCha
 
   return (
     <div className="home">
-      <Room look={look} working={Boolean(live.busy)} phase={phase} asleep={wokenUp} room={room} />
+      <Room look={look} working={Boolean(live.busy)} phase={phase} asleep={wokenUp} sleeping={sleeping} room={room} />
 
       <div className="home-side">
         <button type="button" className="btn" onClick={onLeave}>Volver a la isla</button>
@@ -490,7 +493,7 @@ export default function Home({ agent, messages, chats, chatId, loaded, onOpenCha
               maxLength={20000}
               value={draft}
               autoFocus
-              placeholder={live.busy && !turnHere ? `${spanish(agent.name)} sigue en otra conversación` : `Dile algo a ${spanish(agent.name)}`}
+              placeholder={sleeping ? `${spanish(agent.name)} duerme: tu límite de Claude está al 100%. Despierta a las ${wakes}.` : live.busy && !turnHere ? `${spanish(agent.name)} sigue en otra conversación` : `Dile algo a ${spanish(agent.name)}`}
               onChange={(e) => setDraft(e.target.value)}
               onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); uploadFiles(e.clipboardData.files); } }}
               onKeyDown={(e) => {

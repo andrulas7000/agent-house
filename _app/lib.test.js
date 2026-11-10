@@ -477,3 +477,13 @@ test('Jobs only pins real openings, and what the owner removed stays removed', (
   assert.deepEqual(board.items, []);
   assert.deepEqual(parseJobs(reply, board.gone), [], 'a removed opening does not come back');
 });
+
+test('the plan counts as used up only when a window is full, and wakes at the latest reset', async () => {
+  const { limitUntil, eventsFrom } = await import('./lib.js');
+  const ok = { status: 'allowed', resetsAt: 100, unifiedWindows: { five_hour: { utilization: 0.4, resetsAt: 100, status: 'allowed' }, seven_day: { utilization: 0.9, resetsAt: 900, status: 'allowed' } } };
+  assert.equal(limitUntil(ok), 0);
+  assert.equal(limitUntil({ ...ok, isUsingOverage: true, unifiedWindows: { ...ok.unifiedWindows, five_hour: { utilization: 1, resetsAt: 100, status: 'allowed' } } }), 100_000, 'overage still means 100%');
+  assert.equal(limitUntil({ status: 'rejected', resetsAt: 300 }), 300_000);
+  assert.equal(limitUntil({ status: 'rejected', resetsAt: 300, unifiedWindows: { seven_day: { utilization: 1, resetsAt: 900 } } }), 900_000);
+  assert.deepEqual(eventsFrom(JSON.stringify({ type: 'rate_limit_event', rate_limit_info: ok })), [{ type: 'limit', until: 0 }]);
+});

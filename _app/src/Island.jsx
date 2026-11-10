@@ -138,6 +138,7 @@ function stepNpc(npc, { plot, goal }, dt, ms, still) {
       npc.dir = npc.arrive?.dir ?? 'down';
       npc.flip = Boolean(npc.arrive?.flip);
       npc.until = ms + 2000 + Math.random() * 7000;
+      npc.rush = false; // the run home ends at the door
       if (npc.arrive?.inside) npc.inside = true;
     }
   } else if (!goal && !still && ms > npc.until) {
@@ -302,7 +303,7 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
 
   const seats = house?.live?.seats ?? [];
   const plan = residents.map(({ agent, plot }, index) => {
-    const state = stateOf(agent, live[agent.name], seats.includes(agent.name), now);
+    const state = house?.asleep && !live[agent.name]?.busy ? 'asleep' : stateOf(agent, live[agent.name], seats.includes(agent.name), now);
     const angle = (seats.indexOf(agent.name) / Math.max(seats.length, 1)) * Math.PI * 2;
     const seat = { x: Math.cos(angle) * SEAT_RX, y: Math.sin(angle) * SEAT_RY + 6 };
     let goal = null; // null means strolling
@@ -500,6 +501,7 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
           <span>{now.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
           <b>{now.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}</b>
         </p>
+        {house?.asleep && <p role="status">Todos duermen: límite de Claude al 100%. Despiertan a las {new Date(house.asleep).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}.</p>}
       </header>
 
       {house && (

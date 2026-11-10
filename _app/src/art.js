@@ -259,6 +259,10 @@ function paintPerson(r, look, dir, frame, mood, open) {
     r(2, 5, 5, 4, hair);
     r(2, 5, 2, 4, hairDim);
     r(3, 9, 3, 1, hairDim);
+    if (look.glasses) { // one lens at the front of the face, the arm back to the ear
+      r(7, 6, 1, 1, NAVY);
+      r(8, 6, 3, 2, '#d6ecf7');
+    }
     r(9, 6, 1, 2, NAVY);
     hairTop();
     headgear();
@@ -1422,7 +1426,8 @@ function buildBoardroom(view, phase) {
   });
 
   const table = boardTable();
-  const tableLeft = cx - (table.width >> 1), tableBottom = WALL_H + 58 + lower;
+  const standY = WALL_H + 40 + lower;
+  const tableLeft = cx - (table.width >> 1), tableBottom = standY + 26; // low enough that only Jobs' legs are behind it
   const rugTop = tableBottom - 34;
   R(cx - 90, rugTop, 180, 46, '#8a7a5a');
   R(cx - 88, rugTop + 2, 176, 42, '#2f2a3a');
@@ -1447,7 +1452,7 @@ function buildBoardroom(view, phase) {
   f.globalCompositeOperation = 'source-over';
   // Behind the table, so the table hides Jobs' legs. At work it types on the laptop, still facing you.
   const laptopX = tableLeft + 31;
-  return { c, front, cx, bed: null, stand: { x: cx, y: tableBottom - 18 }, desk: { x: laptopX, y: tableBottom - 18, dir: 'down' } };
+  return { c, front, cx, bed: null, stand: { x: cx, y: standY }, desk: { x: laptopX, y: standY, dir: 'down' } };
 }
 
 /** A home seen from the same three-quarter angle as the island. Fills the window, centred on the resident. */
@@ -1545,17 +1550,25 @@ export function buildRoom(view, look, phase, room) {
 const TUCKED_MS = 650;
 const RUN_IN_MS = 900;
 
+/** In bed if the room has one, otherwise dozing on their feet. */
+function drawSleeper(g, room, look, ms) {
+  const s = personSprite(look, 'down', 0);
+  const { bed, stand } = room;
+  if (bed) g.drawImage(s, 0, 0, s.width, 13, bed.x - (s.width >> 1), bed.y, s.width, 13);
+  else drawAt(g, s, stand.x, stand.y);
+  const at = bed ?? { x: stand.x, y: stand.y - s.height - 4 };
+  g.fillStyle = '#ffffff';
+  const rise = Math.floor(ms / 200) % 4;
+  ZED.forEach(([x, y, w, h]) => g.fillRect(at.x + 12 + x, at.y - 6 - rise + y, w, h));
+}
+
 /** Whatever they were doing, they drop it and come to you. Returns false once they've arrived. */
 function drawEntrance(g, room, look, ms, { asleep, start }) {
   const t = ms - start;
   const { stand, bed } = room;
   const tucked = asleep && bed;
   if (tucked && t < TUCKED_MS) {
-    const s = personSprite(look, 'down', 0);
-    g.drawImage(s, 0, 0, s.width, 13, bed.x - (s.width >> 1), bed.y, s.width, 13);
-    g.fillStyle = '#ffffff';
-    const rise = Math.floor(ms / 200) % 4;
-    ZED.forEach(([x, y, w, h]) => g.fillRect(bed.x + 12 + x, bed.y - 6 - rise + y, w, h));
+    drawSleeper(g, room, look, ms);
     return true;
   }
   const from = tucked ? { x: bed.x + 28, y: bed.y + 34 } : { x: stand.x + 70, y: stand.y + 8 };
@@ -1565,7 +1578,7 @@ function drawEntrance(g, room, look, ms, { asleep, start }) {
   return true;
 }
 
-export function drawRoom(g, room, look, working, ms, entrance) {
+export function drawRoom(g, room, look, working, ms, entrance, sleeping = false) {
   g.imageSmoothingEnabled = false;
   g.drawImage(room.c, 0, 0);
   const beat = Math.floor(ms / 240);
@@ -1578,6 +1591,10 @@ export function drawRoom(g, room, look, working, ms, entrance) {
       for (let i = 0; i < 4; i++) g.fillRect(room.desk.screenX + 2, room.desk.screenY + 2 + i * 3, 6 + ((beat + i * 3) % 12), 1);
     }
     drawAt(g, personSprite(look, room.desk.dir ?? 'up', beat % 2 ? 1 : 2), room.desk.x, room.desk.y);
+    return inFront();
+  }
+  if (sleeping) {
+    drawSleeper(g, room, look, ms);
     return inFront();
   }
   if (entrance && drawEntrance(g, room, look, ms, entrance)) return inFront();

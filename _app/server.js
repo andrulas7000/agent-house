@@ -37,6 +37,7 @@ const NEWS = '_news';
 const NEWS_TIMEOUT_MS = 10 * 60e3;
 const NEWS_RETRY_MS = 30 * 60e3;
 const JOBS = '_jobs';
+const LIMIT = '_limit'; // when the owner's Claude plan comes back, after it hits 100%
 const CV_TIMEOUT_MS = 3 * 60e3;
 
 mkdirSync(DATA, { recursive: true });
@@ -77,6 +78,13 @@ const loadHouse = () => ({
 const loadNews = () => ({ day: null, items: [], error: '', ...JSON.parse(readOr(dataFile(NEWS), '{}')) });
 const loadJobs = () => ({ items: [], gone: [], error: '', ...JSON.parse(readOr(dataFile(JOBS), '{}')) });
 
+/** While the plan is used up everyone sleeps: nothing calls Claude until it resets. Returns that time, or 0. */
+const asleepUntil = () => {
+  const { until = 0 } = JSON.parse(readOr(dataFile(LIMIT), '{}'));
+  return until > Date.now() ? until : 0;
+};
+const ASLEEP = () => `Todos duermen: tu límite de Claude llegó al 100%. Despiertan a las ${new Date(asleepUntil()).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}.`;
+
 function houseView() {
   const house = loadHouse();
   const week = weekOf();
@@ -97,6 +105,7 @@ function houseView() {
     log: house.meetings,
     news: { ...loadNews(), busy: sailing },
     jobs: { ...loadJobs(), gone: undefined, busy: hunting },
+    asleep: asleepUntil() || null,
   };
 }
 
@@ -313,8 +322,13 @@ function withHouse(name, text, canTalk = false) {
 }
 
 /** Sent as a stream, so it can wait for connectors. Sent sooner, the model finds none: measured 3 of 10 working, against 10 of 10 after 2s. */
+/** Every Claude run starts here, so this is also where the plan's usage is read. */
 function sendPrompt(child, prompt) {
   child.stdin.on('error', () => {});
+  createInterface({ input: child.stdout }).on('line', (line) => {
+    if (!line.includes('"rate_limit_event"')) return;
+    for (const event of eventsFrom(line)) if (event.type === 'limit') save(LIMIT, { until: event.until });
+  });
   const timer = setTimeout(() => child.stdin.write(`${JSON.stringify({ type: 'user', message: { role: 'user', content: prompt } })}\n`), CONNECTOR_WAIT_MS);
   child.on('close', () => clearTimeout(timer));
 }
@@ -409,6 +423,10 @@ async function runMeeting(called) {
 
   const speak = async (seat, instruction) => {
     if (meeting.stopped) return;
+    if (asleepUntil()) {
+      meeting.lines.push({ who: seat, text: 'Se quedó dormido: el límite de Claude llegó al 100%.', note: true });
+      return;
+    }
     if (running.has(seat)) {
       meeting.lines.push({ who: seat, text: 'Estaba en otra cosa y perdió este turno.', note: true });
       return;
@@ -449,6 +467,7 @@ async function meetingRoute(req, res) {
   }
   if (action !== 'start') return json(res, 400, { error: 'Acción de reunión desconocida.' });
   if (meeting) return json(res, 409, { error: 'Ya hay una reunión en curso.' });
+  if (asleepUntil()) return json(res, 409, { error: ASLEEP() });
   const started = runMeeting('the owner').catch((err) => {
     console.error(err);
     return 'La reunión se detuvo por un error del servidor local.';
@@ -486,11 +505,11 @@ Tell the owner what came of it in at most three short sentences.`;
 
 /** One resident asks another, in the other's own session, so it remembers the talk. Returns the answer. */
 async function askResident(from, to, said, track) {
-  if (running.has(to) || meeting?.speaker === to) {
+  if (running.has(to) || meeting?.speaker === to || asleepUntil()) {
     const house = loadHouse();
     (house.inbox[to] ??= []).push({ id: house.nextId++, from, text: said, at: Date.now() });
     save(HOUSE, house);
-    return 'Estaba en otra cosa, así que el mensaje queda en espera hasta su próxima conversación.';
+    return `${asleepUntil() ? 'Estaba dormido' : 'Estaba en otra cosa'}, así que el mensaje queda en espera hasta su próxima conversación.`;
   }
   const thread = byRecent(load(to).chats)[0] ?? { id: randomUUID(), title: `Charla con ${shown(from)}`, messages: [], at: Date.now() };
   const replies = [];
@@ -515,6 +534,7 @@ const JOB_NOTES = {
 };
 
 async function chat(req, res, name) {
+  if (asleepUntil()) return json(res, 409, { error: ASLEEP() });
   if (running.has(name)) return json(res, 409, { error: `${shown(name)} sigue trabajando en tu último mensaje.` });
   if (meeting?.speaker === name) return json(res, 409, { error: `${shown(name)} está hablando en la reunión ahora mismo.` });
   let text;
@@ -661,6 +681,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/jobs/cv' || pathname === '/api/jobs/cv.pdf') return await cvRoute(req, res, pathname.endsWith('.pdf'));
     if (pathname === '/api/news' && req.method === 'POST') {
       if (sailing) return json(res, 409, { error: 'Ya está en el mar buscando noticias.' });
+      if (asleepUntil()) return json(res, 409, { error: ASLEEP() });
       sail().catch(console.error);
       return json(res, 200, houseView());
     }
@@ -790,6 +811,7 @@ async function jobsRoute(req, res) {
   const body = await readBody(req).catch(() => ({}));
   if (body.action === 'hunt') {
     if (hunting) return json(res, 409, { error: 'Ya está en el mar buscando trabajos.' });
+    if (asleepUntil()) return json(res, 409, { error: ASLEEP() });
     if (!profileOf(folder)) return json(res, 400, { error: 'Primero cuéntale a Jobs qué buscas, para que lo guarde en perfil.md.' });
     hunt(folder).catch(console.error);
     return json(res, 200, houseView());
@@ -888,7 +910,7 @@ async function findSyncCalendar() {
 }
 
 async function syncGoogle() {
-  if (syncing) return;
+  if (syncing || asleepUntil()) return;
   const house = loadHouse();
   if (!house.google?.since || house.google.retryAt > Date.now() || !googleCalls(house, TIME_ZONE).length) return;
   syncing = true;
@@ -972,10 +994,10 @@ startGoogleSync(firstRun);
 save(HOUSE, firstRun);
 setInterval(() => syncGoogle().catch(console.error), 60_000);
 // ponytail: only runs while the server is open. A missed morning catches up the next time the house opens.
-setInterval(() => { if (!sailing && newsDue(loadNews())) sail().catch(console.error); }, 60_000);
+setInterval(() => { if (!sailing && !asleepUntil() && newsDue(loadNews())) sail().catch(console.error); }, 60_000);
 
 // ponytail: only runs while the server is open. A missed Sunday catches up the next time the house opens.
 setInterval(() => {
   const { meeting: schedule } = loadHouse();
-  if (schedule.auto && !meeting && meetingDue(schedule.last)) runMeeting('the weekly schedule').catch(console.error);
+  if (schedule.auto && !meeting && !asleepUntil() && meetingDue(schedule.last)) runMeeting('the weekly schedule').catch(console.error);
 }, 60_000);
