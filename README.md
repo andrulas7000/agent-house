@@ -93,3 +93,7 @@ Un cambio en `server.js`, `lib.js` o `src/layout.js` necesita reiniciar el servi
 ## Tus datos
 
 Todo lo privado vive en `_app/data/`: conversaciones, calendario, noticias, ofertas, tokens. Esa carpeta está en `.gitignore`. Lo que los residentes escriben en sus propias carpetas sí entraría en git, así que si publicas tu propia isla, revisa antes qué hay en ellas.
+
+## Licencia
+
+[MIT](LICENSE).

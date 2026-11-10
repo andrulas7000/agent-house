@@ -1,6 +1,7 @@
 {
   "name": "agent-house",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "start": "node node_modules/vite/bin/vite.js build && node server.js --open",
