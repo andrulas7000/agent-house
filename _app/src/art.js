@@ -112,7 +112,7 @@ const roleOf = (name) => {
   if (/study|school/i.test(name)) return { hat: 'beanie', glasses: true };
   if (/money|bank/i.test(name)) return { hat: 'tophat', tie: true, shirt: '#2f3a5f', pants: '#2f3a5f', wall: '#74ab5c', ink: '#0c2305' };
   if (/^jobs$|office/i.test(name)) return { hat: null, tie: true, glasses: true, shirt: '#f2ead8', pants: '#4a4a55' };
-  if (/pregonero/i.test(name)) return { hat: 'cap', shirt: '#17806f' };
+  if (/^crier$/i.test(name)) return { hat: 'cap', shirt: '#17806f' };
   return {};
 };
 
@@ -1457,8 +1457,8 @@ function buildBoardroom(view, phase) {
 
 /** A home seen from the same three-quarter angle as the island. Fills the window, centred on the resident. */
 export function buildRoom(view, look, phase, room) {
-  if (room === 'entrevistas') return buildBoardroom(view, phase);
-  if (room === 'puerto') return buildDock(view, phase);
+  if (room === 'interviews') return buildBoardroom(view, phase);
+  if (room === 'port') return buildDock(view, phase);
   if (themeOf(look.id) === 'sky') return buildHeaven(view, phase);
   const { LW, LH } = view;
   const c = make(LW, LH);

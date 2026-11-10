@@ -2,7 +2,7 @@ node_modules/
 _app/data/
 _app/dist/
 .impeccable/
-# Nada de claves en un repo público
+# No keys in a public repo
 .env
 .env.*
 *.log

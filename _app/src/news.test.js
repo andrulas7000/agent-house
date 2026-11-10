@@ -7,14 +7,14 @@ const house = (over) => ({ today: '2026-11-09', events: [], goals: [], live: nul
 
 test('a bubble shows the most urgent true thing', () => {
   const busy = agent({ waiting: 2, misses: 1 });
-  assert.equal(bubbleOf(busy, { busy: true, activity: 'Leyendo STATE.md' }, house()).text, 'Leyendo STATE.md');
-  assert.equal(bubbleOf(busy, {}, house()).text, '2 notas en espera');
-  assert.equal(bubbleOf(agent({ misses: 1 }), {}, house()).text, '1 sin cumplir esta semana');
+  assert.equal(bubbleOf(busy, { busy: true, activity: 'Reading STATE.md' }, house()).text, 'Reading STATE.md');
+  assert.equal(bubbleOf(busy, {}, house()).text, '2 notes waiting');
+  assert.equal(bubbleOf(agent({ misses: 1 }), {}, house()).text, '1 missed this week');
   assert.equal(bubbleOf(agent(), {}, house()), null);
 });
 
 test('only Mayor nags about the check-in', () => {
-  assert.equal(bubbleOf(agent({ name: 'Mayor', visitedToday: false }), {}, house()).text, 'Hoy aún no hay check-in');
+  assert.equal(bubbleOf(agent({ name: 'Mayor', visitedToday: false }), {}, house()).text, 'No check-in yet today');
   assert.equal(bubbleOf(agent({ visitedToday: false }), {}, house()), null);
 });
 
@@ -45,8 +45,8 @@ test('residents start and stop at slightly different times', () => {
 
 test('jobs follow the folder name', () => {
   assert.deepEqual(['Mayor', 'Engineer', 'Music', 'Tutoring', 'Study', 'Gardener', 'Money', 'Jobs'].map(jobOf), ['board', 'bench', 'music', 'teach', 'books', 'garden', 'ledger', 'dock']);
-  assert.equal(wordsFor('work', 'Engineer'), 'En el banco de trabajo');
-  assert.equal(wordsFor('eat', 'Engineer'), 'Comiendo');
+  assert.equal(wordsFor('work', 'Engineer'), 'At the workbench');
+  assert.equal(wordsFor('eat', 'Engineer'), 'Eating');
 });
 
 test('moods follow the facts', () => {
@@ -56,7 +56,7 @@ test('moods follow the facts', () => {
 });
 
 test('the news never invents a story', () => {
-  assert.deepEqual(newsOf([agent()], house()).map((l) => l.text), ['Un día tranquilo en la isla. Nada en la agenda.']);
+  assert.deepEqual(newsOf([agent()], house()).map((l) => l.text), ['A quiet day on the island. Nothing on the agenda.']);
   const lines = newsOf([agent({ name: 'Mayor', visitedToday: false })], house({ events: [{ title: 'Tutoring', day: '2026-11-09', time: '18:30' }] })).map((l) => l.text);
-  assert.deepEqual(lines, ['Alcalde espera el check-in de hoy.', 'Hoy a las 18:30: Tutoring.']);
+  assert.deepEqual(lines, ['Mayor is waiting for today\'s check-in.', 'Today at 18:30: Tutoring.']);
 });

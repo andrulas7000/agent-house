@@ -4,18 +4,18 @@ const pad = (n) => String(n).padStart(2, '0');
 export const minuteOf = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 export const clockOf = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 
-// What the owner sees each resident called. Folders keep their names, so nothing on disk moves.
-export const SPANISH_NAMES = { Mayor: 'Alcalde', Engineer: 'Ingeniero', Music: 'Música', Tutoring: 'Tutorías', God: 'Dios', Money: 'Banquero', Jobs: 'Empleos' };
-export const shown = (name) => SPANISH_NAMES[name] ?? name;
+// What the owner sees each resident called, when it isn't the folder's name: { Money: 'Banker' }. Folders keep their names, so nothing on disk moves.
+export const DISPLAY_NAMES = {};
+export const shown = (name) => DISPLAY_NAMES[name] ?? name;
 
 /** The Claude levels a resident can run on. The server only ever passes one of these ids to the CLI. */
 export const CLAUDE_LEVELS = [
-  { id: 'claude-haiku-5-5', label: 'Haiku 5.5', help: 'El más rápido y ligero.' },
-  { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', help: 'El predeterminado. Sirve para casi todo.' },
-  { id: 'claude-opus-5-5', label: 'Opus 5.5', help: 'El predeterminado de Engineer. Mejor en problemas difíciles y gasta más de tu plan.' },
-  { id: 'claude-fable-5-1', label: 'Fable 5.1', help: 'El más capaz, y el que más gasta de tu plan.' },
+  { id: 'claude-haiku-5-5', label: 'Haiku 5.5', help: 'The fastest and lightest.' },
+  { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', help: 'The default. Good for almost everything.' },
+  { id: 'claude-opus-5-5', label: 'Opus 5.5', help: 'Engineer\'s default. Better at hard problems, and uses more of your plan.' },
+  { id: 'claude-fable-5-1', label: 'Fable 5.1', help: 'The most capable, and the one that uses the most of your plan.' },
 ];
-export const JOB_STATUSES = [['nuevo', 'Nuevo'], ['aplicar', 'Por aplicar'], ['aplicado', 'Aplicado'], ['entrevista', 'Entrevista'], ['oferta', 'Oferta'], ['descartado', 'Descartado']];
+export const JOB_STATUSES = [['new', 'New'], ['apply', 'To apply'], ['applied', 'Applied'], ['interview', 'Interview'], ['offer', 'Offer'], ['dropped', 'Dropped']];
 const DEFAULT_LEVEL = 'claude-sonnet-5-5';
 export const defaultLevelOf = (name) => (/^engineer$/i.test(name) ? 'claude-opus-5-5' : DEFAULT_LEVEL);
 

@@ -1,6 +1,6 @@
 # Agent House
 
-A local web app that turns each folder here into a resident of a pixel-art island. Each resident is a real Claude Code agent: a message to it runs `claude -p` in its folder. Read `PRODUCT.md` for what the product is and the rules it keeps. Read `README.md` for how the owner installs and uses it. The interface is in Spanish.
+A local web app that turns each folder here into a resident of a pixel-art island. Each resident is a real Claude Code agent: a message to it runs `claude -p` in its folder. Read `PRODUCT.md` for what the product is and the rules it keeps. Read `README.md` for how the owner installs and uses it. The interface is in English.
 
 ## Map
 
@@ -8,7 +8,7 @@ A local web app that turns each folder here into a resident of a pixel-art islan
 <Resident>/CLAUDE.md     one folder per resident; its instructions. Folders starting with _ or . are not residents
 _app/server.js           the local server: runs agent turns, meetings, the reporter's and Jobs' web trips, the calendar sync
 _app/lib.js              pure logic the server uses, all tested in lib.test.js: house rules, parsing, news and job boards
-_app/src/layout.js       shared by server and browser: Claude levels, Spanish display names, job statuses, the island camera
+_app/src/layout.js       shared by server and browser: Claude levels, display names, job statuses, the island camera
 _app/src/art.js          every sprite and scene, drawn in code: people, houses, the island, rooms, the dock, the boardroom, heaven
 _app/src/Island.jsx      the island: who walks where, the reporter's dialog, the daily paper
 _app/src/Home.jsx        a resident's home: the room and the chat
@@ -41,4 +41,4 @@ _app/data/               the owner's private data. Never commit it, never read i
 1. Ask what they want each resident for, then write each `CLAUDE.md` with them. The three included ones are starting points.
 2. Run Mayor's intake (`Mayor/protocols/intake.md`) in the app, not here, so its files land where the app reads them.
 3. Adjust `news-sources.json` to the places and topics they care about. Keep it an allowlist.
-4. Adjust `SPANISH_NAMES` in `src/layout.js` to their residents' folder names.
+4. If a resident should show a name other than its folder's, add it to `DISPLAY_NAMES` in `src/layout.js`.

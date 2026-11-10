@@ -16,7 +16,7 @@ function App() {
   const [house, setHouse] = useState(null);
   const [offline, setOffline] = useState(false);
   const [place, setPlace] = useState(placeFromUrl); // null is the island, otherwise a resident's name or COMMON
-  const [room, setRoom] = useState(null); // inside a home: null is the home itself; Jobs also has 'puerto' and 'entrevistas'
+  const [room, setRoom] = useState(null); // inside a home: null is the home itself; Jobs also has 'port' and 'interviews'
   const [threads, setThreads] = useState({}); // messages by conversation id
   const [chats, setChats] = useState({}); // each resident's list, newest first
   const [openChats, setOpenChats] = useState({}); // the conversation showing in each home
@@ -119,7 +119,7 @@ function App() {
     controllers.current[name] = controller;
     const chat = openChats[slotOf(name)];
     append(chat, { role: 'user', text, files });
-    patchLive(name, { busy: true, chat, activity: 'Pensando', error: null, lastText: text, lastFiles: files });
+    patchLive(name, { busy: true, chat, activity: 'Thinking', error: null, lastText: text, lastFiles: files });
 
     const handle = (event) => {
       if (event.type === 'activity') patchLive(name, { activity: event.label });
@@ -133,7 +133,7 @@ function App() {
       }
       if (event.type === 'text') {
         append(chat, { role: 'agent', text: event.text });
-        patchLive(name, { activity: 'Pensando', unread: placeRef.current !== name });
+        patchLive(name, { activity: 'Thinking', unread: placeRef.current !== name });
       }
       if (event.type === 'note') append(chat, { role: 'note', text: event.text });
       if (event.type === 'error') patchLive(name, { error: event.message });
@@ -159,7 +159,7 @@ function App() {
         lines.filter(Boolean).forEach((line) => handle(JSON.parse(line)));
       }
     } catch (err) {
-      if (err.name !== 'AbortError') patchLive(name, { error: err.message || 'El servidor local dejó de responder.' });
+      if (err.name !== 'AbortError') patchLive(name, { error: err.message || 'The local server stopped responding.' });
     } finally {
       patchLive(name, { busy: false, activity: null });
       refresh();
@@ -175,7 +175,7 @@ function App() {
       if (!res.ok) return (await res.json()).error;
       return await loadChats(name);
     } catch {
-      return 'El servidor local dejó de responder.';
+      return 'The local server stopped responding.';
     }
   };
   const renameChat = async (name, id, title) => {
@@ -202,7 +202,7 @@ function App() {
       setHouse(reply);
       return null;
     } catch {
-      return 'El servidor local dejó de responder.';
+      return 'The local server stopped responding.';
     }
   };
   const act = (op) => postHouse('/api/house', op);
@@ -213,7 +213,7 @@ function App() {
   // A resident being talked to is as busy as one you're talking to.
   const liveNow = useMemo(() => {
     const merged = { ...live };
-    for (const { from, to } of house?.talks ?? []) merged[to] = { ...merged[to], busy: true, activity: `Hablando con ${shown(from)}` };
+    for (const { from, to } of house?.talks ?? []) merged[to] = { ...merged[to], busy: true, activity: `Talking to ${shown(from)}` };
     return merged;
   }, [live, house?.talks]);
 
@@ -250,7 +250,7 @@ function App() {
           onLeave={leave}
         />
       )}
-      {offline && <p className="offline" role="alert">La isla perdió la conexión. Abre de nuevo Open Agent House.bat y recarga la página.</p>}
+      {offline && <p className="offline" role="alert">The island lost its connection. Run Open Agent House.bat again and reload the page.</p>}
     </div>
   );
 }

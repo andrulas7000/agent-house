@@ -2,12 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { buildRoom, drawRoom, lookOf, portraitUrl } from './art.js';
-import { CLAUDE_LEVELS, defaultLevelOf, shown as spanish } from './layout.js'; // Home has its own `shown`, the typewriter's progress
+import { CLAUDE_LEVELS, defaultLevelOf, shown as display } from './layout.js'; // Home has its own `shown`, the typewriter's progress
 import { isEngineer, isGod, isJobs, moodOf, routineOf } from './news.js';
 import Office, { JOB_ROOMS } from './Office.jsx';
 
-const MARK = { done: 'Hecho', missed: 'Sin cumplir', partial: 'Parcial', open: 'Pendiente' };
-const QUICK = { daily: 'Diario', weekly: 'Semanal', grades: 'Notas', music: 'Música', debrief: 'Balance', session: 'Sesión' }; // protocol files keep their English names
+const MARK = { done: 'Done', missed: 'Missed', partial: 'Partial', open: 'Open' };
 const ROOM_MIN_WIDTH = 250; // art pixels, enough for all the furniture around the resident
 const ROOM_MIN_HEIGHT = 130;
 const MIN_SCALE = 2;
@@ -34,11 +33,11 @@ export function Inline({ text }) {
 }
 
 function sinceVisit(ts) {
-  if (!ts) return 'Aún no han hablado';
+  if (!ts) return 'You haven\'t talked yet';
   const hours = (Date.now() - ts) / 3600e3;
-  if (hours < 1) return 'Hablaron en la última hora';
-  if (hours < 24) return `Última charla hace ${Math.floor(hours)} h`;
-  return `Última charla hace ${Math.floor(hours / 24)} d`;
+  if (hours < 1) return 'Talked in the last hour';
+  if (hours < 24) return `Last talked ${Math.floor(hours)} h ago`;
+  return `Last talked ${Math.floor(hours / 24)} d ago`;
 }
 
 /** Reveals only replies that arrive while you're in the room. Old ones are already there when you walk in. */
@@ -71,7 +70,7 @@ function useTypewriter(text, chat, count) {
 
 export function LevelSelect({ agent, value, onChange }) {
   return (
-    <select aria-label={`Nivel de Claude de ${spanish(agent)}`} value={value ?? defaultLevelOf(agent)} onChange={(e) => onChange(e.target.value)}>
+    <select aria-label={`Claude level for ${display(agent)}`} value={value ?? defaultLevelOf(agent)} onChange={(e) => onChange(e.target.value)}>
       {CLAUDE_LEVELS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
     </select>
   );
@@ -95,7 +94,7 @@ function Glyph({ name, scale = 2 }) {
   );
 }
 
-function CopyButton({ read, label = 'Copiar', className = '' }) {
+function CopyButton({ read, label = 'Copy', className = '' }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     await navigator.clipboard.writeText(read());
@@ -103,7 +102,7 @@ function CopyButton({ read, label = 'Copiar', className = '' }) {
     setTimeout(() => setCopied(false), COPIED_MS);
   };
   return (
-    <button type="button" className={`ghost ${className}`} aria-label={copied ? 'Copiado' : label} title={copied ? 'Copiado' : label} onClick={copy}>
+    <button type="button" className={`ghost ${className}`} aria-label={copied ? 'Copied' : label} title={copied ? 'Copied' : label} onClick={copy}>
       <Glyph name={copied ? 'check' : 'copy'} />
     </button>
   );
@@ -113,7 +112,7 @@ function CodeBlock({ children }) {
   const ref = useRef(null);
   return (
     <div className="code">
-      <CopyButton className="code-copy" label="Copiar código" read={() => ref.current.innerText} />
+      <CopyButton className="code-copy" label="Copy code" read={() => ref.current.innerText} />
       <pre ref={ref}>{children}</pre>
     </div>
   );
@@ -131,7 +130,7 @@ function Reply({ text, full }) {
   return (
     <div className="m-agent">
       <div className="prose"><Markdown remarkPlugins={REPLY_PLUGINS} components={REPLY_PARTS}>{text}</Markdown></div>
-      <div className="m-tools"><CopyButton read={() => full} label="Copiar respuesta" /></div>
+      <div className="m-tools"><CopyButton read={() => full} label="Copy reply" /></div>
     </div>
   );
 }
@@ -142,9 +141,9 @@ function Attachment({ path, pending, onRemove }) {
       <Glyph name="file" />
       <span>
         <b>{pending ? path : nameOf(path)}</b>
-        <small>{pending ? 'Subiendo…' : path}</small>
+        <small>{pending ? 'Uploading…' : path}</small>
       </span>
-      {onRemove && <button type="button" className="ghost" aria-label={`Quitar ${nameOf(path)}`} onClick={onRemove}><Glyph name="x" /></button>}
+      {onRemove && <button type="button" className="ghost" aria-label={`Remove ${nameOf(path)}`} onClick={onRemove}><Glyph name="x" /></button>}
     </li>
   );
 }
@@ -154,7 +153,7 @@ function Notes({ notes }) {
   if (notes.length <= MAX_NOTES_SHOWN) return lines;
   return (
     <details className="m-notes">
-      <summary>{notes.length} novedades de la isla</summary>
+      <summary>{notes.length} updates from the island</summary>
       {lines}
     </details>
   );
@@ -191,15 +190,15 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
   return (
     <div className="chats" ref={rootRef} onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
       <div className="chats-bar">
-        <button type="button" className="chats-toggle" aria-expanded={open} aria-label="Tus conversaciones" onClick={() => setOpen(!open)}>
+        <button type="button" className="chats-toggle" aria-expanded={open} aria-label="Your conversations" onClick={() => setOpen(!open)}>
           <Glyph name="down" />
-          <span>{chats.find((c) => c.id === current)?.title ?? 'Conversación nueva'}</span>
+          <span>{chats.find((c) => c.id === current)?.title ?? 'New conversation'}</span>
         </button>
-        <button type="button" className="btn" onClick={() => { onNew(); setOpen(false); }}>Nueva</button>
+        <button type="button" className="btn" onClick={() => { onNew(); setOpen(false); }}>New</button>
       </div>
       {open && (
         <div className="chats-pop">
-          {chats.length === 0 && <p className="quiet">Aún no hay conversaciones. Di algo y empieza aquí.</p>}
+          {chats.length === 0 && <p className="quiet">No conversations yet. Say something to start one here.</p>}
           <ul>
             {chats.map((c) => (
               <li key={c.id} className={c.id === current ? 'is-current' : undefined}>
@@ -209,7 +208,7 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
                       autoFocus
                       defaultValue={c.title}
                       maxLength={80}
-                      aria-label={`Título nuevo para ${c.title}`}
+                      aria-label={`New title for ${c.title}`}
                       onBlur={(e) => finishRename(c, e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') e.target.blur();
@@ -220,20 +219,20 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
                   : (
                     <button type="button" className="chat-pick" aria-current={c.id === current ? 'true' : undefined} onClick={() => { onOpen(c.id); setOpen(false); }}>
                       <span>{c.title}</span>
-                      <time>{new Date(c.at).toLocaleDateString('es', { month: 'short', day: 'numeric' })}</time>
+                      <time>{new Date(c.at).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</time>
                     </button>
                   )}
-                <button type="button" className="ghost" aria-label={`Renombrar ${c.title}`} title="Renombrar" onClick={() => setEditing(c.id)}><Glyph name="edit" /></button>
+                <button type="button" className="ghost" aria-label={`Rename ${c.title}`} title="Rename" onClick={() => setEditing(c.id)}><Glyph name="edit" /></button>
                 <button
                   type="button"
                   className={`ghost chat-delete${arming === c.id ? ' is-armed' : ''}`}
                   disabled={busy}
-                  aria-label={arming === c.id ? `Confirmar borrar ${c.title}` : `Borrar ${c.title}`}
-                  title={busy ? 'Espera a que termine' : 'Borrar'}
+                  aria-label={arming === c.id ? `Confirm delete ${c.title}` : `Delete ${c.title}`}
+                  title={busy ? 'Wait until it finishes' : 'Delete'}
                   onClick={() => (arming === c.id ? remove(c.id) : setArming(c.id))}
                   onBlur={() => setArming(null)}
                 >
-                  {arming === c.id ? '¿Borrar?' : <Glyph name="x" />}
+                  {arming === c.id ? 'Delete?' : <Glyph name="x" />}
                 </button>
               </li>
             ))}
@@ -317,10 +316,10 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
   const typing = shown < newest.length;
   const doneCount = agent.today?.items.filter((i) => i.status === 'done').length ?? 0;
   const sleeping = Boolean(asleep) && !live.busy;
-  const wakes = asleep && new Date(asleep).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' });
-  const status = live.busy ? `${live.activity ?? 'Pensando'}…` : sleeping ? `Durmiendo hasta las ${wakes}` : sinceVisit(agent.lastVisit);
+  const wakes = asleep && new Date(asleep).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
+  const status = live.busy ? `${live.activity ?? 'Thinking'}…` : sleeping ? `Asleep until ${wakes}` : sinceVisit(agent.lastVisit);
   const back = room ? (e) => onRoom(null, e) : onLeave;
-  const facts = [JOB_ROOMS[room] ?? null, agent.streak ? `Racha de ${agent.streak} días` : null, agent.misses ? `${agent.misses} sin cumplir esta semana` : null, agent.waiting ? `${agent.waiting} ${agent.waiting === 1 ? 'nota' : 'notas'} en espera` : null].filter(Boolean);
+  const facts = [JOB_ROOMS[room] ?? null, agent.streak ? `${agent.streak}-day streak` : null, agent.misses ? `${agent.misses} missed this week` : null, agent.waiting ? `${agent.waiting} ${agent.waiting === 1 ? 'note' : 'notes'} waiting` : null].filter(Boolean);
   const uploading = files.some((f) => f.pending);
   const canSend = !live.busy && !sleeping && !uploading && Boolean(draft.trim() || files.length);
   const levelLabel = CLAUDE_LEVELS.find((l) => l.id === (level ?? defaultLevelOf(agent.name)))?.label;
@@ -364,7 +363,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
       if (!res.ok) throw new Error(reply.error);
       setFiles((cur) => [...cur, ...reply.files.filter((p) => !cur.some((f) => f.path === p)).map((path) => ({ path }))]);
     } catch (err) {
-      setAttachError(err.message || 'No se pudo abrir el selector de archivos.');
+      setAttachError(err.message || 'Couldn\'t open the file picker.');
     }
   };
 
@@ -372,7 +371,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
   const uploadFiles = (list) => [...list].forEach(async (file) => {
     const id = `${file.name}-${file.size}-${Math.random()}`;
     setAttachError('');
-    setFiles((cur) => [...cur, { path: file.name || 'Archivo pegado', pending: true, id }]);
+    setFiles((cur) => [...cur, { path: file.name || 'Pasted file', pending: true, id }]);
     try {
       const res = await fetch(`/api/upload?name=${encodeURIComponent(file.name || 'pasted')}`, { method: 'POST', body: file });
       const reply = await res.json();
@@ -380,7 +379,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
       setFiles((cur) => cur.map((f) => (f.id === id ? { path: reply.path } : f)));
     } catch (err) {
       setFiles((cur) => cur.filter((f) => f.id !== id));
-      setAttachError(err.message || `No se pudo adjuntar ${file.name}.`);
+      setAttachError(err.message || `Couldn't attach ${file.name}.`);
     }
   });
 
@@ -396,14 +395,14 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
       <Room look={look} working={Boolean(live.busy)} phase={phase} asleep={wokenUp} sleeping={sleeping} room={room} />
 
       <div className="home-side">
-        <button type="button" className="btn" onClick={onLeave}>Volver a la isla</button>
-        {room && <button type="button" className="btn" onClick={(e) => onRoom(null, e)}>Ir a casa</button>}
+        <button type="button" className="btn" onClick={onLeave}>Back to the island</button>
+        {room && <button type="button" className="btn" onClick={(e) => onRoom(null, e)}>Go home</button>}
         {isJobs(agent.name) && <Office room={room} jobs={jobs} onAct={onJobs} onRoom={onRoom} />}
       </div>
 
       {agent.today?.items.length > 0 && (
         <details className="pin" open={wide}>
-          <summary>Hoy <span>{doneCount} de {agent.today.items.length}</span></summary>
+          <summary>Today <span>{doneCount} of {agent.today.items.length}</span></summary>
           <ul>
             {agent.today.items.map((item, i) => (
               <li key={i}>
@@ -419,7 +418,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
       <aside className="who frame">
         <img src={portraitUrl(look, moodOf(agent, live), typing && Math.floor(shown / 24) % 2 === 1)} alt="" width={96} height={120} />
         <div>
-          <h2>{spanish(agent.name)}</h2>
+          <h2>{display(agent.name)}</h2>
           <p role="status">{status}</p>
           {facts.map((f) => <small key={f}>{f}</small>)}
           {isEngineer(agent.name)
@@ -435,7 +434,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
 
       <main
         className={`chat frame${dragging ? ' is-dragging' : ''}`}
-        aria-label={`Conversación con ${spanish(agent.name)}`}
+        aria-label={`Conversation with ${display(agent.name)}`}
         style={{ '--wall': look.wall, '--wall-ink': look.ink }}
         onDragOver={(e) => { if (hasFiles(e)) { e.preventDefault(); setDragging(true); } }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); }}
@@ -446,10 +445,10 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
         <div className="thread" ref={threadRef} onScroll={onScroll} role="log" aria-live="polite">
           {loaded && messages.length === 0 && !turnHere && (
             <div className="hello">
-              <p><b>{spanish(agent.name)}</b> te está esperando.</p>
-              {room === 'entrevistas' && <p>Dile a qué puesto te presentas y empieza la entrevista de prueba.</p>}
-              {room === 'puerto' && <p>Aquí se busca empleo: mándalo en el barco o pídele que revise el tablón contigo.</p>}
-              {room ? null : agent.hasPrompt ? <p>Saluda para empezar.</p> : <p>Esta carpeta aún no tiene CLAUDE.md, así que es una página en blanco. Dile quién debe ser y podrá escribir el suyo.</p>}
+              <p><b>{display(agent.name)}</b> is waiting for you.</p>
+              {room === 'interviews' && <p>Say which role you're going for and the mock interview begins.</p>}
+              {room === 'port' && <p>This is where the job hunt happens: send Jobs out on the boat, or go through the board together.</p>}
+              {room ? null : agent.hasPrompt ? <p>Say hello to start.</p> : <p>This folder has no CLAUDE.md yet, so it's a blank page. Tell it who to be and it can write its own.</p>}
             </div>
           )}
           {blocks.map((b) => {
@@ -462,20 +461,20 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
               </div>
             );
           })}
-          {turnHere && <p className="pending" role="status"><i /><i /><i /><span>{live.activity ?? 'Pensando'}</span></p>}
+          {turnHere && <p className="pending" role="status"><i /><i /><i /><span>{live.activity ?? 'Thinking'}</span></p>}
           {errorHere && (
             <div className="slip" role="alert">
               <p>{live.error}</p>
-              <button type="button" onClick={() => onSend(live.lastText, live.lastFiles)}>Reintentar</button>
+              <button type="button" onClick={() => onSend(live.lastText, live.lastFiles)}>Retry</button>
             </div>
           )}
         </div>
 
-        {!atBottom && <button type="button" className="btn to-bottom" aria-label="Ir al último mensaje" onClick={() => { stick.current = true; setAtBottom(true); toBottom(); }}><Glyph name="down" /></button>}
+        {!atBottom && <button type="button" className="btn to-bottom" aria-label="Go to the latest message" onClick={() => { stick.current = true; setAtBottom(true); toBottom(); }}><Glyph name="down" /></button>}
 
         {agent.quick.length > 0 && messages.length === 0 && !room && (
           <div className="quick">
-            {agent.quick.map((q) => <button type="button" key={q} disabled={live.busy} onClick={() => submit(`Hagamos el protocolo ${q}.`, [])}>{QUICK[q] ?? q}</button>)}
+            {agent.quick.map((q) => <button type="button" key={q} disabled={live.busy} onClick={() => submit(`Let's do the ${q} protocol.`, [])}>{q[0].toUpperCase() + q.slice(1)}</button>)}
           </div>
         )}
         <form className="box" onSubmit={(e) => { e.preventDefault(); submit(draft); }}>
@@ -485,15 +484,15 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
             </ul>
           )}
           <div className="box-row">
-            <button type="button" className="btn attach" aria-label="Adjuntar archivos de tu computador" title="Adjuntar archivos" onClick={pickFiles}><Glyph name="plus" /></button>
-            <label className="sr-only" htmlFor="draft">Mensaje para {spanish(agent.name)}</label>
+            <button type="button" className="btn attach" aria-label="Attach files from your computer" title="Attach files" onClick={pickFiles}><Glyph name="plus" /></button>
+            <label className="sr-only" htmlFor="draft">Message for {display(agent.name)}</label>
             <textarea
               id="draft"
               rows={1}
               maxLength={20000}
               value={draft}
               autoFocus
-              placeholder={sleeping ? `${spanish(agent.name)} duerme: tu límite de Claude está al 100%. Despierta a las ${wakes}.` : live.busy && !turnHere ? `${spanish(agent.name)} sigue en otra conversación` : `Dile algo a ${spanish(agent.name)}`}
+              placeholder={sleeping ? `${display(agent.name)} is asleep: your Claude limit is at 100%. Wakes up at ${wakes}.` : live.busy && !turnHere ? `${display(agent.name)} is still in another conversation` : `Say something to ${display(agent.name)}`}
               onChange={(e) => setDraft(e.target.value)}
               onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); uploadFiles(e.clipboardData.files); } }}
               onKeyDown={(e) => {
@@ -504,12 +503,12 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
               }}
             />
             {turnHere
-              ? <button type="button" className="btn btn-stop send" onClick={onStop}>Parar</button>
-              : <button type="submit" className="btn send" disabled={!canSend}>Enviar</button>}
+              ? <button type="button" className="btn btn-stop send" onClick={onStop}>Stop</button>
+              : <button type="submit" className="btn send" disabled={!canSend}>Send</button>}
           </div>
           {(attachError || levelError) && <p className="box-error" role="alert">{attachError || levelError}</p>}
         </form>
-        {dragging && <div className="drop-hint" aria-hidden="true">Suelta los archivos para adjuntarlos</div>}
+        {dragging && <div className="drop-hint" aria-hidden="true">Drop the files to attach them</div>}
       </main>
     </div>
   );

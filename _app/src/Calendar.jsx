@@ -11,8 +11,8 @@ const EDGE_PX = 40;
 const OWNER_LOOK = { wall: '#ffd95a', ink: '#2a1c2e' };
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
-export const whoName = (by) => (by === '_you' ? 'Tú' : shown(by));
-export const dayLabel = (day) => new Date(`${day}T12:00:00`).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
+export const whoName = (by) => (by === '_you' ? 'You' : shown(by));
+export const dayLabel = (day) => new Date(`${day}T12:00:00`).toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' });
 
 const clamp = (n, low, high) => Math.min(Math.max(n, low), high);
 const snap = (m) => Math.round(m / SNAP) * SNAP;
@@ -46,7 +46,7 @@ function Block({ event, lane, lanes, selected, onOpen }) {
       style={style}
       data-id={event.id}
       onClick={() => onOpen(event)}
-      aria-label={`${event.title}, ${dayLabel(event.day)} a las ${event.time}, ${event.minutes} minutos, ${whoName(event.by)}${event.bumped ? `, desplazado por ${whoName(event.bumped)}` : ''}`}
+      aria-label={`${event.title}, ${dayLabel(event.day)} at ${event.time}, ${event.minutes} minutes, ${whoName(event.by)}${event.bumped ? `, bumped by ${whoName(event.bumped)}` : ''}`}
     >
       {body}
       <span className="block-resize" data-resize />
@@ -58,17 +58,17 @@ function Editor({ editor, held, titleRef, onChange, onSave, onDelete, onClose })
   const set = (field) => (e) => onChange({ ...editor, [field]: e.target.value });
   return (
     <form className="cal-editor" onSubmit={onSave}>
-      <label className="wide">Bloque
-        <input ref={titleRef} value={editor.title} maxLength={120} onChange={set('title')} placeholder="Qué va a pasar" required />
+      <label className="wide">Block
+        <input ref={titleRef} value={editor.title} maxLength={120} onChange={set('title')} placeholder="What's happening" required />
       </label>
-      <label>Día<input type="date" value={editor.day} onChange={set('day')} required /></label>
-      <label>Inicio<input type="time" value={editor.time} onChange={set('time')} /></label>
-      <label>Minutos<input type="number" min={5} max={DAY_MINUTES} step={5} value={editor.minutes} onChange={set('minutes')} required /></label>
+      <label>Day<input type="date" value={editor.day} onChange={set('day')} required /></label>
+      <label>Start<input type="time" value={editor.time} onChange={set('time')} /></label>
+      <label>Minutes<input type="number" min={5} max={DAY_MINUTES} step={5} value={editor.minutes} onChange={set('minutes')} required /></label>
       <div className="cal-editor-actions">
-        <button type="submit" className="action">{editor.id ? 'Guardar' : 'Reservar'}</button>
-        {editor.id && <button type="button" className="action stop" onClick={onDelete}>Borrar</button>}
-        <button type="button" className="plain" onClick={onClose}>Cancelar</button>
-        {held && <small>{whoName(held.by)}{held.bumped ? `, desplazado por ${whoName(held.bumped)}` : ''}</small>}
+        <button type="submit" className="action">{editor.id ? 'Save' : 'Book'}</button>
+        {editor.id && <button type="button" className="action stop" onClick={onDelete}>Delete</button>}
+        <button type="button" className="plain" onClick={onClose}>Cancel</button>
+        {held && <small>{whoName(held.by)}{held.bumped ? `, bumped by ${whoName(held.bumped)}` : ''}</small>}
       </div>
     </form>
   );
@@ -229,27 +229,27 @@ export default function Calendar({ house, onAct }) {
     if (editor?.id === e.id) return { ...e, title: editor.title || e.title, day: editor.day, time: editor.time, minutes: Number(editor.minutes) || e.minutes };
     return e;
   });
-  if (drag?.mode === 'new') shown.push({ id: 0, title: 'Bloque nuevo', day: drag.day, time: clockOf(drag.start), minutes: drag.minutes, by: '_you' });
-  else if (editor && !editor.id) shown.push({ id: 0, title: editor.title || 'Bloque nuevo', day: editor.day, time: editor.time, minutes: Number(editor.minutes) || 60, by: '_you' });
+  if (drag?.mode === 'new') shown.push({ id: 0, title: 'New block', day: drag.day, time: clockOf(drag.start), minutes: drag.minutes, by: '_you' });
+  else if (editor && !editor.id) shown.push({ id: 0, title: editor.title || 'New block', day: editor.day, time: editor.time, minutes: Number(editor.minutes) || 60, by: '_you' });
 
   const onScreen = shown.filter((e) => days.includes(e.day));
   const holders = [...new Set(onScreen.filter((e) => e.id).map((e) => e.by))];
-  const month = new Date(`${days[0]}T12:00:00`).toLocaleDateString('es', { month: 'long', year: 'numeric' });
+  const month = new Date(`${days[0]}T12:00:00`).toLocaleDateString('en', { month: 'long', year: 'numeric' });
 
   return (
     <div className="calendar">
       <div className="cal-bar">
-        <button type="button" className="plain" title="T" onClick={() => setCursor(house.today)}>Hoy</button>
-        <button type="button" className="plain" aria-label="Antes" title="K" onClick={() => setCursor(addDays(cursor, -step))}>‹</button>
-        <button type="button" className="plain" aria-label="Después" title="J" onClick={() => setCursor(addDays(cursor, step))}>›</button>
+        <button type="button" className="plain" title="T" onClick={() => setCursor(house.today)}>Today</button>
+        <button type="button" className="plain" aria-label="Earlier" title="K" onClick={() => setCursor(addDays(cursor, -step))}>‹</button>
+        <button type="button" className="plain" aria-label="Later" title="J" onClick={() => setCursor(addDays(cursor, step))}>›</button>
         <h3>{month}</h3>
         <ul className="cal-legend">
           {holders.map((by) => <li key={by}><i style={{ background: lookFor(by).wall }} />{whoName(by)}</li>)}
         </ul>
         <span className="cal-views">
-          {['day', 'week'].map((v) => <button type="button" key={v} className="plain" title={v[0].toUpperCase()} aria-pressed={view === v} onClick={() => setView(v)}>{v === 'day' ? 'Día' : 'Semana'}</button>)}
+          {['day', 'week'].map((v) => <button type="button" key={v} className="plain" title={v[0].toUpperCase()} aria-pressed={view === v} onClick={() => setView(v)}>{v === 'day' ? 'Day' : 'Week'}</button>)}
         </span>
-        <button type="button" className="action" onClick={() => openDraft(view === 'day' ? cursor : house.today, clockOf(Math.min(snap(nowMinute), DAY_MINUTES - SNAP)))}>Nuevo</button>
+        <button type="button" className="action" onClick={() => openDraft(view === 'day' ? cursor : house.today, clockOf(Math.min(snap(nowMinute), DAY_MINUTES - SNAP)))}>New</button>
       </div>
       {error && <p className="refused" role="alert">{error}</p>}
       {house.sync && <p className="cal-sync" role="status">{house.sync}</p>}
@@ -258,11 +258,11 @@ export default function Calendar({ house, onAct }) {
           <span />
           {days.map((d) => (
             <span key={d} className={`cal-day${d === house.today ? ' is-today' : ''}`}>
-              <small>{new Date(`${d}T12:00:00`).toLocaleDateString('es', { weekday: 'short' })}</small>
+              <small>{new Date(`${d}T12:00:00`).toLocaleDateString('en', { weekday: 'short' })}</small>
               <b>{Number(d.slice(8))}</b>
             </span>
           ))}
-          <span className="cal-gutter-label">todo el día</span>
+          <span className="cal-gutter-label">all day</span>
           {days.map((d) => (
             <div key={d} className="cal-allday" onClick={(e) => { if (e.target === e.currentTarget) openDraft(d, ''); }}>
               {onScreen.filter((e) => e.day === d && !e.time).map((e) => {

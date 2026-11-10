@@ -174,26 +174,26 @@ function Dispatch({ open, news, onMore, onClose }) {
   const [topic, setTopic] = useState(null);
   const sections = Object.entries(Object.groupBy(news?.items ?? [], (n) => n.topic));
   const [shown, stories] = sections.find(([t]) => t === topic) ?? sections[0] ?? [];
-  const date = news?.day ? new Date(`${news.day}T12:00:00`).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+  const date = news?.day ? new Date(`${news.day}T12:00:00`).toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
   const problem = error || news?.error;
   return (
-    <dialog className="paper dispatch" ref={ref} onClose={onClose} aria-label="Noticias del muelle" {...backdrop}>
+    <dialog className="paper dispatch" ref={ref} onClose={onClose} aria-label="News from the dock" {...backdrop}>
       <header>
         <div>
-          <h2>Noticias del muelle</h2>
+          <h2>News from the dock</h2>
           <p>{date}</p>
         </div>
         <div className="dispatch-actions">
           <button type="button" className="action" disabled={news?.busy} onClick={async () => setError((await onMore()) ?? '')}>
-            {news?.busy ? 'En el mar…' : 'Buscar más noticias'}
+            {news?.busy ? 'At sea…' : 'Find more news'}
           </button>
-          <button type="button" className="btn" onClick={onClose}>Volver a la isla</button>
+          <button type="button" className="btn" onClick={onClose}>Back to the island</button>
         </div>
       </header>
       {problem && !news?.busy && <p className="refused" role="alert">{problem}</p>}
       <div className="dispatch-main">
       {sections.length > 0 && (
-        <nav className="topics" aria-label="Secciones">
+        <nav className="topics" aria-label="Sections">
           {sections.map(([t, list]) => (
             <button type="button" key={t} className="plain" aria-pressed={t === shown} onClick={() => setTopic(t)}>
               <span>{t}</span> <small>{list.length}</small>
@@ -202,7 +202,7 @@ function Dispatch({ open, news, onMore, onClose }) {
         </nav>
       )}
       <div className="dispatch-body">
-        {!sections.length && <p className="quiet">{news?.busy ? `${REPORTER} salió en el bote a buscar las noticias de hoy.` : 'Todavía no hay noticias.'}</p>}
+        {!sections.length && <p className="quiet">{news?.busy ? `The ${REPORTER.toLowerCase()} is out on the boat finding today's news.` : 'No news yet.'}</p>}
         {stories && (
           <ul aria-label={shown}>
             {stories.map((n) => (
@@ -224,17 +224,17 @@ function Dispatch({ open, news, onMore, onClose }) {
 function Paper({ open, news, today, onClose, onGo }) {
   const [ref, backdrop] = useModal(open, onClose);
   const [lead, ...rest] = news;
-  const date = today ? new Date(`${today}T12:00:00`).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+  const date = today ? new Date(`${today}T12:00:00`).toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' }) : '';
   return (
-    <dialog className="paper" ref={ref} onClose={onClose} aria-label="Novedades de hoy" {...backdrop}>
+    <dialog className="paper" ref={ref} onClose={onClose} aria-label="Today's news" {...backdrop}>
       <header>
-        <h2>Novedades de la isla</h2>
+        <h2>Island news</h2>
         <p>{date}</p>
       </header>
       {lead && (
         <button type="button" className="paper-lead" onClick={(e) => onGo(lead.who, e)}>
           <b>{lead.text}</b>
-          <span>Ir ahora</span>
+          <span>Go now</span>
         </button>
       )}
       <ul>
@@ -242,7 +242,7 @@ function Paper({ open, news, today, onClose, onGo }) {
           <li key={line.text}><button type="button" onClick={(e) => onGo(line.who, e)}>{line.text}</button></li>
         ))}
       </ul>
-      <button type="button" className="btn" onClick={onClose}>A la isla</button>
+      <button type="button" className="btn" onClick={onClose}>To the island</button>
     </dialog>
   );
 }
@@ -428,8 +428,8 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
           <div className="world" style={{ width: view.LW * view.s, height: view.LH * view.s }}>
             <canvas ref={canvasRef} width={view.LW} height={view.LH} />
             {house && (
-              <button type="button" className="spot spot-square" style={box(-74, -40, 148, 80)} onClick={(e) => go(COMMON, e)} aria-label={`Plaza del pueblo. ${goalsDone} de ${goalsTotal} metas de la semana hechas.`}>
-                <span className="plaque">Plaza del pueblo</span>
+              <button type="button" className="spot spot-square" style={box(-74, -40, 148, 80)} onClick={(e) => go(COMMON, e)} aria-label={`Town square. ${goalsDone} of ${goalsTotal} weekly goals done.`}>
+                <span className="plaque">Town square</span>
               </button>
             )}
             {plan.map(({ agent, plot, state, bubble }) => {
@@ -466,26 +466,26 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
             ))}
             {agents && (
               <div className="spot spot-vacant" style={box(vacant.x - 30, vacant.y - 40, 60, 40)}>
-                <span className="think"><span className="think-text">Crea una carpeta en agents y alguien se muda aquí.</span></span>
-                <span className="plaque">Terreno libre</span>
+                <span className="think"><span className="think-text">Make a folder in agents and someone moves in here.</span></span>
+                <span className="plaque">Empty plot</span>
               </div>
             )}
             {house && (
-              <button type="button" className="spot spot-dock" style={box(dock.news.x - 11, dock.news.y - 22, 22, 24)} onClick={(e) => go(NEWS, e)} aria-label={`Noticias del muelle.${crierBubble ? ` ${crierBubble.text}.` : ''}`}>
+              <button type="button" className="spot spot-dock" style={box(dock.news.x - 11, dock.news.y - 22, 22, 24)} onClick={(e) => go(NEWS, e)} aria-label={`News from the dock.${crierBubble ? ` ${crierBubble.text}.` : ''}`}>
                 {crierBubble && <Think bubble={crierBubble} />}
-                <span className="plaque">Noticias</span>
+                <span className="plaque">News</span>
               </button>
             )}
             {jobs && (
-              <button type="button" className="spot spot-dock" style={box(dock.stall.x - 12, dock.stall.y - 22, 24, 24)} onClick={(e) => go(jobs.name, e, 'puerto')} aria-label={`El puerto de ${shown(jobs.name)}`}>
-                {house?.jobs?.busy && <Think bubble={{ icon: 'dots', text: 'En el mar, buscando trabajos' }} />}
-                <span className="plaque">Puerto</span>
+              <button type="button" className="spot spot-dock" style={box(dock.stall.x - 12, dock.stall.y - 22, 24, 24)} onClick={(e) => go(jobs.name, e, 'port')} aria-label={`${shown(jobs.name)}' port`}>
+                {house?.jobs?.busy && <Think bubble={{ icon: 'dots', text: 'At sea, looking for openings' }} />}
+                <span className="plaque">Port</span>
               </button>
             )}
             {god && (() => {
               const bubble = bubbleOf(god, live[god.name], house);
               return (
-                <button type="button" className="spot" style={box(-36, view.godY - 40, 72, 42)} onClick={(e) => go(god.name, e)} aria-label={`${shown(god.name)}, en una nube sobre el mar.${bubble ? ` ${bubble.text}.` : ''}`}>
+                <button type="button" className="spot" style={box(-36, view.godY - 40, 72, 42)} onClick={(e) => go(god.name, e)} aria-label={`${shown(god.name)}, on a cloud above the sea.${bubble ? ` ${bubble.text}.` : ''}`}>
                   {bubble && <Think bubble={bubble} />}
                   <span className="plaque">{shown(god.name)}</span>
                 </button>
@@ -498,15 +498,15 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
       <header className="hud-left frame">
         <h1>Agent House</h1>
         <p>
-          <span>{now.toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-          <b>{now.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}</b>
+          <span>{now.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+          <b>{now.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}</b>
         </p>
-        {house?.asleep && <p role="status">Todos duermen: límite de Claude al 100%. Despiertan a las {new Date(house.asleep).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}.</p>}
+        {house?.asleep && <p role="status">Everyone is asleep: Claude limit at 100%. They wake up at {new Date(house.asleep).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}.</p>}
       </header>
 
       {house && (
-        <button type="button" className="hud-right frame" onClick={(e) => go(COMMON, e)} aria-label={`Metas de la semana: ${goalsDone} de ${goalsTotal} hechas. Abrir la plaza.`}>
-          <span>Metas de la semana</span>
+        <button type="button" className="hud-right frame" onClick={(e) => go(COMMON, e)} aria-label={`Weekly goals: ${goalsDone} of ${goalsTotal} done. Open the square.`}>
+          <span>Weekly goals</span>
           <span className="bar"><i style={{ width: `${goalsTotal ? (goalsDone / goalsTotal) * 100 : 0}%` }} /></span>
           <b>{goalsDone}/{goalsTotal}</b>
         </button>
@@ -514,20 +514,20 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
 
       {agents?.length === 0 && (
         <section className="nobody frame">
-          <h2>Aún no vive nadie aquí</h2>
-          <p>Crea una carpeta dentro de <b>agents</b> y alguien se muda en unos segundos.</p>
+          <h2>Nobody lives here yet</h2>
+          <p>Make a folder inside <b>agents</b> and someone moves in within seconds.</p>
         </section>
       )}
 
       {agents?.length > 0 && (
         <footer className="dock">
           {headline && (
-            <button type="button" className="ticker frame" onClick={() => setPaper(true)} aria-label={`Abrir las novedades de hoy. ${headline.text}`}>
-              <b>Novedades</b>
+            <button type="button" className="ticker frame" onClick={() => setPaper(true)} aria-label={`Open today's news. ${headline.text}`}>
+              <b>News</b>
               <span key={headline.text}>{headline.text}</span>
             </button>
           )}
-          <nav className="roster" aria-label="Residentes">
+          <nav className="roster" aria-label="Residents">
             {agents.filter((a) => !isGod(a.name)).map((a) => {
               const bubble = bubbleOf(a, live[a.name], house);
               return (

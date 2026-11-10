@@ -11,7 +11,7 @@ import { NEWS_HOSTS, NEWS_SOURCES, addJobs, allowedSource, changeJob, jobsMarkdo
 test('the old single conversation becomes the first chat, keeping its messages and memory', () => {
   const messages = [{ role: 'user', text: 'hi', at: 5 }, { role: 'agent', text: 'yo', at: 9 }];
   const { chats, days } = withChats({ messages, sessionId: 's1', days: ['d'] });
-  assert.deepEqual(chats, [{ id: '5', title: 'Conversación anterior', messages, sessionId: 's1', at: 9 }]);
+  assert.deepEqual(chats, [{ id: '5', title: 'Earlier conversation', messages, sessionId: 's1', at: 9 }]);
   assert.deepEqual(days, ['d']);
   assert.deepEqual(withChats({ messages: [] }).chats, [], 'nothing said, nothing to list');
   const migrated = withChats({ chats: [{ id: 'a' }] });
@@ -21,7 +21,7 @@ test('the old single conversation becomes the first chat, keeping its messages a
 test('a chat is titled by its first line, or its first file', () => {
   assert.equal(titleOf('  plan the week\nand more'), 'plan the week');
   assert.equal(titleOf('', ['C:\\notes\\exam.pdf']), 'exam.pdf');
-  assert.equal(titleOf(''), 'Conversación nueva');
+  assert.equal(titleOf(''), 'New conversation');
 });
 
 import { writeFileSync } from 'node:fs';
@@ -186,7 +186,7 @@ test('calendar: lower levels are refused, higher levels bump', () => {
   assert.ok(applyOp(house, 'Studio', slot('Mix', '09:00')).ok);
   const bump = applyOp(house, 'Mayor', slot('Standup', '09:30'));
   assert.ok(bump.ok);
-  assert.match(bump.message, /Desplazó "Mix"/);
+  assert.match(bump.message, /Bumped "Mix"/);
   assert.equal(house.events.find((e) => e.title === 'Mix').bumped, 'Mayor');
   assert.ok(applyOp(house, 'Studio', slot('Mix again', '09:00')).ok === false, 'the slot now belongs to Mayor');
 });
@@ -242,7 +242,7 @@ test('move: follows the same clash rules as booking, and un-bumps', () => {
   assert.equal(refused.ok, false, 'the owner\'s slot has to be cleared first');
   assert.equal(standup.time, '14:00');
 
-  assert.match(applyOp(house, 'Mayor', { do: 'move', id: standup.id, time: '12:30' }).message, /Desplazó "Revision"/);
+  assert.match(applyOp(house, 'Mayor', { do: 'move', id: standup.id, time: '12:30' }).message, /Bumped "Revision"/);
   assert.equal(revision.bumped, 'Mayor');
   assert.ok(applyOp(house, 'Mayor', { do: 'move', id: revision.id, time: '16:00' }).ok);
   assert.equal(revision.bumped, undefined);
@@ -407,12 +407,12 @@ test('eventsFrom maps the claude stream', () => {
       { type: 'text', text: 'Hi' },
       { type: 'tool_use', name: 'Write', input: { file_path: 'C:\\x\\STATE.md'.replaceAll('\\', '/') } },
     ] } })),
-    [{ type: 'text', text: 'Hi' }, { type: 'activity', label: 'Escribiendo STATE.md' }],
+    [{ type: 'text', text: 'Hi' }, { type: 'activity', label: 'Writing STATE.md' }],
   );
   assert.deepEqual(eventsFrom('not json'), []);
   assert.deepEqual(
     eventsFrom(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'mcp__claude_ai_Google_Calendar__list_events', input: {} }] } })),
-    [{ type: 'activity', label: 'Revisando tu calendario' }],
+    [{ type: 'activity', label: 'Checking your calendar' }],
   );
 });
 
@@ -430,7 +430,7 @@ test('the reporter only files what can be shown', () => {
   const host = NEWS_SOURCES[first][0];
   const story = (over) => ({ topic: first, title: 'Titular', summary: 'Resumen', source: 'Medio', url: `https://www.${host}/a`, ...over });
   const reply = JSON.stringify({ items: [story(), story(), story({ url: 'https://www.semana.com/b' }), story({ url: `https://www.${host}/c`, topic: 'Marte' }), story({ url: `https://www.${host}/d`, title: '  ' }), null] });
-  assert.deepEqual(parseNews(`Aquí va:\n${reply}`).map((n) => n.url), [`https://www.${host}/a`], 'one story, once');
+  assert.deepEqual(parseNews(`Here you go:\n${reply}`).map((n) => n.url), [`https://www.${host}/a`], 'one story, once');
   assert.deepEqual(parseNews(reply, [`https://www.${host}/a`]), [], 'nothing it already had');
   assert.equal(parseNews('sorry, no json'), null);
   assert.equal(parseNews('{"items": 3}'), null);
@@ -461,16 +461,16 @@ test('the news guard only opens the listed outlets', () => {
 });
 
 test('Jobs only pins real openings, and what the owner removed stays removed', () => {
-  const opening = (over) => ({ title: 'Internship', company: 'Acme', location: 'Remoto', summary: 'Algo', url: 'https://acme.com/jobs/1', ...over });
+  const opening = (over) => ({ title: 'Internship', company: 'Acme', location: 'Remote', summary: 'Something', url: 'https://acme.com/jobs/1', ...over });
   const reply = JSON.stringify({ items: [opening(), opening(), opening({ url: 'https://acme.com/' }), opening({ url: 'javascript:alert(1)' }), opening({ title: ' ', url: 'https://acme.com/jobs/2' }), null] });
   const found = parseJobs(reply);
-  assert.deepEqual(found.map((j) => [j.url, j.status]), [['https://acme.com/jobs/1', 'nuevo']]);
+  assert.deepEqual(found.map((j) => [j.url, j.status]), [['https://acme.com/jobs/1', 'new']]);
   assert.equal(parseJobs('not json'), null);
 
   const board = addJobs({ items: [], gone: [], error: 'old' }, found);
   assert.equal(board.error, '');
-  assert.equal(changeJob(board, { action: 'status', url: 'https://acme.com/jobs/1', status: 'aplicado' }), null);
-  assert.match(jobsMarkdown(board.items), /\[aplicado\] Internship, Acme \(Remoto\)/);
+  assert.equal(changeJob(board, { action: 'status', url: 'https://acme.com/jobs/1', status: 'applied' }), null);
+  assert.match(jobsMarkdown(board.items), /\[applied\] Internship, Acme \(Remote\)/);
   assert.ok(changeJob(board, { action: 'status', url: 'https://acme.com/jobs/1', status: 'hacked' }));
   assert.ok(changeJob(board, { action: 'remove', url: 'https://nope.com/x' }));
   assert.equal(changeJob(board, { action: 'remove', url: 'https://acme.com/jobs/1' }), null);

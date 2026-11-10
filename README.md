@@ -1,99 +1,99 @@
 # Agent House
 
-> A pixel-art island where every folder is a resident: a real Claude Code agent with its own house, memory and job. Runs locally on your own Claude plan. The interface is in Spanish.
+> A pixel-art island where every folder is a resident: a real Claude Code agent with its own house, memory and job. Runs locally on your own Claude plan.
 
-Una isla de pixel art donde cada carpeta es un residente: un agente de Claude Code con su propia casa. Haces clic en alguien, entras a su casa y conversas con él. En la plaza hay un calendario compartido, metas de la semana y reuniones de grupo. Un pregonero trae noticias cada mañana y Empleos sale en barco a buscarte trabajo.
+Click someone, walk into their house and talk with them. The town square has a shared calendar, weekly goals and group meetings. A town crier brings the news every morning, and Jobs sails out to find you work.
 
-![La sala de oficinas de Empleos](docs/sala-de-oficinas.png)
+![Jobs' office room](docs/office-room.png)
 
-Todo corre en tu computador. No hay servidor en la nube, ni cuentas, ni claves de API: cada mensaje es una llamada a `claude -p` dentro de la carpeta de ese residente, con tu propia sesión de Claude Code.
+Everything runs on your computer. No cloud server, no accounts, no API keys: every message is a call to `claude -p` inside that resident's folder, with your own Claude Code login.
 
-## Cómo funciona
+## How it works
 
 ```
-navegador (React + canvas)  ──HTTP──▶  _app/server.js (Node, solo 127.0.0.1)  ──spawn──▶  claude -p  en  <Residente>/
-        ▲                                        │
-        └──────── eventos en streaming ◀─────────┘   _app/data/  (conversaciones, calendario, noticias: privado)
+browser (React + canvas)  ──HTTP──▶  _app/server.js (Node, 127.0.0.1 only)  ──spawn──▶  claude -p  in  <Resident>/
+        ▲                                       │
+        └──────── streamed events ◀─────────────┘   _app/data/  (conversations, calendar, news: private)
 ```
 
-- **Un residente = una carpeta.** Cualquier subcarpeta que no empiece por `_` o `.` se muda a la isla. Su `CLAUDE.md` es su personalidad y sus instrucciones. Lo que escribe (notas, estado, registros) queda en su carpeta.
-- **Cada conversación es una sesión de Claude Code.** El servidor lanza `claude -p --output-format stream-json` en la carpeta del residente y reenvía al navegador el texto y lo que está haciendo ("Leyendo archivo", "Buscando en la web"). Las conversaciones se reanudan con su id de sesión, así que recuerdan.
-- **La isla dice la verdad.** Burbujas, caras y noticias salen solo de datos reales: si está trabajando, si tiene notas pendientes, su racha de visitas, lo que dejó sin cumplir. Lo único inventado es la rutina diaria (trabajar, comer, charlar, dormir según la hora), y el trabajo real siempre la interrumpe.
-- **Agentes encerrados.** Corren con `--restricted`, una lista explícita de herramientas, sin preguntas de permisos y con hooks (`_app/*-guard.cjs`) que les impiden salir de su carpeta, escribir en el calendario sin plan, o leer medios fuera de la lista. Lo que viene de la web o de otros residentes es información, nunca instrucciones.
-- **Cuando tu plan llega al 100%, todos se van a dormir.** Claude Code informa del uso del plan en cada respuesta. Si alguna ventana (la de 5 horas o la semanal) llega al 100%, la isla se apaga: las ventanas se oscurecen, nadie responde, no salen los barcos ni hay reuniones, y un aviso dice a qué hora despiertan. A esa hora vuelven solos.
+- **One resident = one folder.** Any subfolder not starting with `_` or `.` moves onto the island. Its `CLAUDE.md` is its personality and instructions. What it writes (notes, state, logs) stays in its folder.
+- **Every conversation is a Claude Code session.** The server runs `claude -p --output-format stream-json` in the resident's folder and streams the text and what it's doing ("Reading file", "Searching the web") to the browser. Conversations resume by session id, so they remember.
+- **The island tells the truth.** Bubbles, faces and news come only from real data: whether it's working, whether it has notes waiting, its visit streak, what it left undone. The one invented thing is the daily routine (work, eat, chat, sleep by the clock), and real work always interrupts it.
+- **Fenced-in agents.** They run with `--restricted`, an explicit tool list, no permission prompts, and hooks (`_app/*-guard.cjs`) that stop them leaving their folder, writing to the calendar without a plan, or reading outlets off the list. What comes from the web or from other residents is information, never instructions.
+- **When your plan hits 100%, everyone goes to sleep.** Claude Code reports plan usage on every reply. If any window (the 5-hour one or the weekly one) reaches 100%, the island shuts down: windows go dark, nobody answers, the boats stay in and there are no meetings, and a notice says when they wake up. At that time they come back by themselves.
 
-## Lo que necesitas
+## What you need
 
-- Windows. Los lanzadores son `.bat` y `.vbs`; el servidor en sí funciona en cualquier sistema con Node (`npm start` en `_app`).
-- [Node.js](https://nodejs.org) 22 o más nuevo.
-- [Claude Code](https://claude.com/claude-code) instalado y con sesión iniciada. Comprueba que `claude --version` funciona en una terminal.
-- Opcional: Google Chrome, para abrir la app en su propia ventana. Tectonic, para compilar el CV en PDF.
+- Windows. The launchers are `.bat` and `.vbs`; the server itself runs anywhere with Node (`npm start` in `_app`).
+- [Node.js](https://nodejs.org) 22 or newer.
+- [Claude Code](https://claude.com/claude-code) installed and logged in. Check that `claude --version` works in a terminal.
+- Optional: Google Chrome, to open the app in its own window. Tectonic, to compile the CV to PDF.
 
-## Instalar
+## Install
 
-1. Clona o descarga este repo donde quieras. Esta carpeta es la isla.
-2. Doble clic en `_app/Open Agent House.bat`. La primera vez instala lo necesario; luego compila la app, la abre en el navegador y deja una ventana negra abierta: ese es el servidor.
-3. Para tenerla encendida sin ventana negra, usa `_app/Agent House.vbs`. Si ya está corriendo solo abre la ventana; si no, la arranca escondida.
+1. Clone or download this repo anywhere. This folder is the island.
+2. Double-click `_app/Open Agent House.bat`. The first time it installs what it needs; then it builds the app, opens it in the browser and leaves a black window open: that's the server.
+3. To keep it running without the black window, use `_app/Agent House.vbs`. If it's already running it just opens the window; if not, it starts it hidden.
 
-### Que arranque sola al encender el computador
+### Start it when the computer starts
 
-1. Clic derecho en `_app/Agent House.vbs` → Mostrar más opciones → Crear acceso directo.
-2. Clic derecho en el acceso directo → Propiedades. En Destino, añade ` /fondo` al final, después de las comillas.
-3. Pulsa Win+R, escribe `shell:startup` y mueve el acceso directo a esa carpeta.
+1. Right-click `_app/Agent House.vbs` → Show more options → Create shortcut.
+2. Right-click the shortcut → Properties. In Target, add ` /background` at the end, after the quotes.
+3. Press Win+R, type `shell:startup` and move the shortcut into that folder.
 
-Así el pregonero trae las noticias cada mañana aunque no abras nada.
+That way the crier brings the news every morning even if you don't open anything.
 
-## La isla
+## The island
 
-| Lugar | Qué hay |
+| Place | What's there |
 |---|---|
-| **Casas** | Clic en una casa o en su residente para entrar. A la derecha, el chat (con varias conversaciones, adjuntos y arrastrar archivos); a la izquierda, su cuarto. |
-| **Plaza** | Calendario compartido por semanas, metas de la semana, reuniones de grupo (a pedido o cada domingo) y la pestaña Residentes: nivel de Claude, acceso al calendario e internet de cada uno. |
-| **Muelle** | El pregonero con el periódico del día y el puesto de Empleos. |
-| **La nube** | Arriba del mapa (sube con la rueda del ratón) vive God. |
+| **Houses** | Click a house or its resident to go in. On the right, the chat (several conversations, attachments, drag and drop files); on the left, their room. |
+| **Square** | Shared weekly calendar, weekly goals, group meetings (on demand or every Sunday) and the Residents tab: each one's Claude level, calendar access and internet. |
+| **Dock** | The crier with the day's paper, and Jobs' stall. |
+| **The cloud** | Above the map (scroll up with the mouse wheel) lives God. |
 
-### Residentes de ejemplo
+### Example residents
 
-Vienen tres. Puedes borrarlos o reescribirlos.
+Three come included. You can delete or rewrite them.
 
-| Carpeta | Qué hace |
+| Folder | What it does |
 |---|---|
-| `Mayor` | El alcalde. Casa más grande, check-in diario, y es el embudo: solo él manda notas a todos y mueve cualquier bloque del calendario. Empieza con la entrevista de `Mayor/protocols/intake.md`. |
-| `God` | Configura a los demás: edita sus instrucciones con copia de seguridad. |
-| `Jobs` | Empleos. Tiene casa, un puerto con barco propio para salir a buscar ofertas, un tablón, tu CV en LaTeX y una sala de oficinas para entrevistas de prueba. Lo que busca sale de `Jobs/perfil.md`, que llenas conversando con él. |
+| `Mayor` | The biggest house, the daily check-in, and the funnel: only Mayor sends notes to everyone and moves any calendar block. Starts with the interview in `Mayor/protocols/intake.md`. |
+| `God` | Configures the others: edits their instructions, with backups. |
+| `Jobs` | Has a house, a port with its own boat to go find openings, a board, your CV in LaTeX and an office room for mock interviews. What it looks for comes from `Jobs/profile.md`, which you fill in by talking to it. |
 
-Estos nombres de carpeta tienen poderes especiales en el código (`isMayor`, `isGod`, `isJobs`). Las demás carpetas toman su aspecto, su casa y su oficio en la isla de palabras en el nombre: `engineer`, `music`, `tutor`, `money`, `study`…
+These folder names have special powers in the code (`isMayor`, `isGod`, `isJobs`). Other folders take their look, house and island job from words in the name: `engineer`, `music`, `tutor`, `money`, `study`…
 
-- **Crear un residente:** crea una carpeta. En unos segundos alguien se muda.
-- **Darle personalidad:** escribe su `CLAUDE.md`, o pídeselo a él mismo en el chat.
-- **Nombre en pantalla:** `SPANISH_NAMES` en `_app/src/layout.js`. Las carpetas no cambian.
+- **Add a resident:** make a folder. Within seconds someone moves in.
+- **Give it a personality:** write its `CLAUDE.md`, or ask it to in the chat.
+- **Name on screen:** `DISPLAY_NAMES` in `_app/src/layout.js`. Folders don't change.
 
-## Personalizar
+## Customize
 
-- **Noticias:** `_app/news-sources.json`. Cada sección lista los únicos medios que el pregonero puede leer y citar. Es una lista de permitidos a propósito: lo que no está, no entra. En `rules` van reglas extra en inglés.
-- **Carpetas extra para un residente:** crea `_app/data/extra-dirs.json` con algo como `{"Engineer": ["C:\\ruta\\a\\un\\proyecto"]}`. Solo ese residente podrá leer y editar ahí.
-- **Google Calendar:** crea un calendario llamado exactamente `Agent House` y los bloques de la plaza se copian ahí. Los residentes leen tu calendario con tu conector de Claude, solo lectura.
-- **Notion:** corre `_app/Connect Notion.bat` con una integración interna limitada a las páginas que quieras compartir. El token se guarda en `_app/data/notion/token.txt`, que nunca se sube a git.
-- **CV en PDF:** `winget install TectonicTypesetting.Tectonic` para que funcione "Compilar PDF".
+- **News:** `_app/news-sources.json`. Each section lists the only outlets the crier may read and cite. It's an allowlist on purpose: what isn't there doesn't get in. Extra rules go in `rules`.
+- **Extra folders for a resident:** create `_app/data/extra-dirs.json` with something like `{"Engineer": ["C:\\path\\to\\a\\project"]}`. Only that resident can read and edit there.
+- **Google Calendar:** create a calendar named exactly `Agent House` and the square's blocks are copied there. Residents read your calendar through your Claude connector, read-only.
+- **Notion:** run `_app/Connect Notion.bat` with an internal integration limited to the pages you want to share. The token is saved in `_app/data/notion/token.txt`, which never goes into git.
+- **CV to PDF:** `winget install TectonicTypesetting.Tectonic` so "Compile PDF" works.
 
-Lo más fácil es abrir Claude Code en esta carpeta y pedirle los cambios: `CLAUDE.md` le explica cómo está hecha la app.
+The easiest way is to open Claude Code in this folder and ask it for the changes: `CLAUDE.md` explains how the app is built.
 
-## Desarrollo
+## Development
 
 ```
 cd _app
 npm install
-npm test                                   # pruebas de lib.js, el calendario y los guardias
-node node_modules/vite/bin/vite.js build   # recompila la interfaz; recarga la página para verla
-npm start                                  # compila y arranca el servidor en http://127.0.0.1:3737
+npm test                                   # tests for lib.js, the calendar and the guards
+node node_modules/vite/bin/vite.js build   # rebuilds the interface; reload the page to see it
+npm start                                  # builds and starts the server at http://127.0.0.1:3737
 ```
 
-Un cambio en `server.js`, `lib.js` o `src/layout.js` necesita reiniciar el servidor; abrir `Open Agent House.bat` de nuevo reemplaza al anterior. Todo el arte está dibujado en código en `src/art.js`, en escalas enteras.
+A change to `server.js`, `lib.js` or `src/layout.js` needs a server restart; opening `Open Agent House.bat` again replaces the old one. All the art is drawn in code in `src/art.js`, at whole-number scales.
 
-## Tus datos
+## Your data
 
-Todo lo privado vive en `_app/data/`: conversaciones, calendario, noticias, ofertas, tokens. Esa carpeta está en `.gitignore`. Lo que los residentes escriben en sus propias carpetas sí entraría en git, así que si publicas tu propia isla, revisa antes qué hay en ellas.
+Everything private lives in `_app/data/`: conversations, calendar, news, openings, tokens. That folder is in `.gitignore`. What residents write in their own folders would go into git, so if you publish your own island, check what's in them first.
 
-## Licencia
+## License
 
 [MIT](LICENSE).

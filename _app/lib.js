@@ -21,13 +21,13 @@ export function listFolders(root) {
     .sort((a, b) => a.localeCompare(b));
 }
 
-export const titleOf = (text, files = []) => text.trim().split('\n')[0].slice(0, 60) || basename(files[0] ?? '') || 'Conversación nueva';
+export const titleOf = (text, files = []) => text.trim().split('\n')[0].slice(0, 60) || basename(files[0] ?? '') || 'New conversation';
 
 /** Residents used to keep one endless conversation. It becomes the first of their list, with its memory intact. */
 export function withChats({ messages = [], sessionId, ...rest }) {
   if (rest.chats) return rest;
   if (!messages.length) return { ...rest, chats: [] };
-  return { ...rest, chats: [{ id: String(messages[0].at), title: 'Conversación anterior', messages, sessionId, at: messages.at(-1).at }] };
+  return { ...rest, chats: [{ id: String(messages[0].at), title: 'Earlier conversation', messages, sessionId, at: messages.at(-1).at }] };
 }
 
 /** Consecutive visited days ending today, or yesterday if today hasn't happened yet. */
@@ -72,15 +72,15 @@ export function countMisses(ledger, today, windowDays = 7) {
 
 const labelFor = ({ name, input = {} }) => {
   const file = input.file_path ? basename(input.file_path) : '';
-  if (name === 'Read') return `Leyendo ${file}`;
-  if (name === 'Write' || name === 'Edit') return `Escribiendo ${file}`;
-  if (name === 'Glob' || name === 'Grep') return 'Buscando en archivos';
-  if (name.startsWith('mcp__claude_ai_Google_Calendar__')) return 'Revisando tu calendario';
-  if (name.startsWith('mcp__notion__')) return 'Leyendo Notion';
-  if (name === 'ToolSearch') return 'Preparándose';
-  if (name === 'WebSearch') return 'Buscando en la web';
-  if (name === 'WebFetch') return 'Leyendo una página web';
-  return `Usando ${name}`;
+  if (name === 'Read') return `Reading ${file}`;
+  if (name === 'Write' || name === 'Edit') return `Writing ${file}`;
+  if (name === 'Glob' || name === 'Grep') return 'Searching files';
+  if (name.startsWith('mcp__claude_ai_Google_Calendar__')) return 'Checking your calendar';
+  if (name.startsWith('mcp__notion__')) return 'Reading Notion';
+  if (name === 'ToolSearch') return 'Getting ready';
+  if (name === 'WebSearch') return 'Searching the web';
+  if (name === 'WebFetch') return 'Reading a web page';
+  return `Using ${name}`;
 };
 
 // The reporter's beat, from news-sources.json. Only those outlets can be read or cited, so an outlet nobody vetted
@@ -140,7 +140,7 @@ export function parseJobs(text, seen = []) {
   if (!items) return null;
   const urls = new Set(seen);
   return items.flatMap((n) => {
-    const job = { title: tidy(n?.title, 160), company: tidy(n?.company, 80), location: tidy(n?.location, 80), deadline: tidy(n?.deadline, 40), summary: tidy(n?.summary, 400), url: n?.url, status: 'nuevo' };
+    const job = { title: tidy(n?.title, 160), company: tidy(n?.company, 80), location: tidy(n?.location, 80), deadline: tidy(n?.deadline, 40), summary: tidy(n?.summary, 400), url: n?.url, status: 'new' };
     if (!job.title || !pageUrl(job.url) || urls.has(job.url)) return [];
     urls.add(job.url);
     return [job];
@@ -152,19 +152,19 @@ export const addJobs = (board, found) => ({ ...board, items: [...found, ...board
 /** The owner's changes to the board. Returns an error message, or null. Mutates `board`. */
 export function changeJob(board, { action, url, status }) {
   const job = board.items.find((j) => j.url === url);
-  if (!job) return 'Ese trabajo ya no está en la lista.';
+  if (!job) return 'That opening is no longer on the list.';
   if (action === 'remove') {
     board.items = board.items.filter((j) => j !== job);
     board.gone = [...board.gone, url].slice(-MAX_GONE);
     return null;
   }
-  if (action !== 'status' || !JOB_STATUSES.some(([value]) => value === status)) return 'No se entendió ese cambio.';
+  if (action !== 'status' || !JOB_STATUSES.some(([value]) => value === status)) return 'That change wasn\'t understood.';
   job.status = status;
   return null;
 }
 
 /** What Jobs reads about the board, since it lives outside its folder. */
-export const jobsMarkdown = (items) => `# Trabajos en el tablón\n\nEste archivo lo genera la app. Los cambios se hacen en el tablón de la oficina.\n\n${items.map((j) => `- [${j.status}] ${j.title}${j.company ? `, ${j.company}` : ''}${j.location ? ` (${j.location})` : ''}${j.deadline ? `, cierra ${j.deadline}` : ''}: ${j.url}`).join('\n') || '(vacío)'}\n`;
+export const jobsMarkdown = (items) => `# Openings on the board\n\nThe app generates this file. Changes are made on the board at the port.\n\n${items.map((j) => `- [${j.status}] ${j.title}${j.company ? `, ${j.company}` : ''}${j.location ? ` (${j.location})` : ''}${j.deadline ? `, closes ${j.deadline}` : ''}: ${j.url}`).join('\n') || '(empty)'}\n`;
 
 /** Sections in a fixed order, newest stories kept when the paper is full. */
 export const mergeNews = (old, found) => {
@@ -186,7 +186,7 @@ const MAX_WAITING = 30;
 
 export const isGod = (name) => /^god$/i.test(name);
 export const isMayor = (name) => /^mayor$/i.test(name);
-const display = (name) => (name === OWNER ? 'el dueño' : shown(name));
+const display = (name) => (name === OWNER ? 'the owner' : shown(name));
 
 export function tierOf(house, name) {
   if (name === OWNER) return 'owner';
@@ -248,7 +248,7 @@ const clashes = (a, b) => a.day === b.day && a.time && b.time && !a.bumped && !b
 export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTalk = false } = {}) {
   const rank = RANK[tierOf(house, actor)];
   const rankOf = (name) => RANK[tierOf(house, name)];
-  const no = (why) => ({ ok: false, message: `Rechazado: ${why}` });
+  const no = (why) => ({ ok: false, message: `Refused: ${why}` });
   const yes = (message) => ({ ok: true, message });
   const canManage = (item) => (item.by === actor ? rank >= RANK.member : rank > rankOf(item.by));
   const canEditBlock = (event) => isMayor(actor) || canManage(event); // Mayor keeps the calendar, the owner's blocks included
@@ -258,35 +258,35 @@ export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTa
     return { blocker: others.find((e) => rankOf(e.by) >= rank), others };
   };
   const badBlock = ({ title, day, time, minutes }) => {
-    if (!title) return 'un evento necesita título.';
-    if (!validDay(day)) return `"${title}" necesita una fecha real en formato YYYY-MM-DD.`;
-    if (time && !validTime(time)) return `"${title}" necesita la hora en formato HH:MM.`;
-    if (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440) return `"${title}" necesita una duración de 5 a 1440 minutos.`;
+    if (!title) return 'an event needs a title.';
+    if (!validDay(day)) return `"${title}" needs a real date in YYYY-MM-DD format.`;
+    if (time && !validTime(time)) return `"${title}" needs the time in HH:MM format.`;
+    if (!Number.isInteger(minutes) || minutes < 5 || minutes > 1440) return `"${title}" needs a length of 5 to 1440 minutes.`;
     return null;
   };
   const bump = (others) => {
     others.forEach((e) => { e.bumped = actor; });
-    return others.length ? ` Desplazó ${others.map((e) => `"${e.title}"`).join(', ')}.` : '';
+    return others.length ? ` Bumped ${others.map((e) => `"${e.title}"`).join(', ')}.` : '';
   };
   const id = Number(op?.id);
 
   switch (op?.do) {
     case 'add': {
-      if (rank < RANK.member) return no('los residentes de solo lectura no pueden reservar en el calendario.');
+      if (rank < RANK.member) return no('read-only residents can\'t book the calendar.');
       const event = { id: house.nextId, title: tidy(op.title, 120), day: op.day, time: op.time || '', minutes: op.minutes === undefined ? 60 : Number(op.minutes), by: actor };
       const bad = badBlock(event);
       if (bad) return no(bad);
       const { blocker, others } = slotFor(event);
-      if (blocker) return no(`"${event.title}" choca con #${blocker.id} "${blocker.title}", de ${display(blocker.by)}.`);
+      if (blocker) return no(`"${event.title}" clashes with #${blocker.id} "${blocker.title}", held by ${display(blocker.by)}.`);
       const bumped = bump(others);
       house.events.push(event);
       house.nextId++;
-      return yes(`Reservado "${event.title}" el ${event.day}${event.time ? ` a las ${event.time}` : ''}.${bumped}`);
+      return yes(`Booked "${event.title}" on ${event.day}${event.time ? ` at ${event.time}` : ''}.${bumped}`);
     }
     case 'move': {
       const event = house.events.find((e) => e.id === id);
-      if (!event) return no(`no existe el evento de calendario #${op.id}.`);
-      if (!canEditBlock(event)) return no(`"${event.title}" es de ${display(event.by)}.`);
+      if (!event) return no(`there is no calendar event #${op.id}.`);
+      if (!canEditBlock(event)) return no(`"${event.title}" belongs to ${display(event.by)}.`);
       const next = {
         ...event,
         title: op.title === undefined ? event.title : tidy(op.title, 120),
@@ -298,89 +298,89 @@ export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTa
       const bad = badBlock(next);
       if (bad) return no(bad);
       const { blocker, others } = slotFor(next);
-      if (blocker) return no(`"${next.title}" choca con #${blocker.id} "${blocker.title}", de ${display(blocker.by)}.`);
+      if (blocker) return no(`"${next.title}" clashes with #${blocker.id} "${blocker.title}", held by ${display(blocker.by)}.`);
       const bumped = bump(others);
       Object.assign(event, next);
-      return yes(`Movido "${event.title}" al ${event.day}${event.time ? ` a las ${event.time}` : ''}.${bumped}`);
+      return yes(`Moved "${event.title}" to ${event.day}${event.time ? ` at ${event.time}` : ''}.${bumped}`);
     }
     case 'remove': {
       const event = house.events.find((e) => e.id === id);
-      if (!event) return no(`no existe el evento de calendario #${op.id}.`);
-      if (!canEditBlock(event)) return no(`"${event.title}" es de ${display(event.by)}.`);
+      if (!event) return no(`there is no calendar event #${op.id}.`);
+      if (!canEditBlock(event)) return no(`"${event.title}" belongs to ${display(event.by)}.`);
       if (event.google) (house.google ??= { gone: [] }).gone.push(event.google);
       house.events = house.events.filter((e) => e !== event);
-      return yes(`Quitado "${event.title}" del calendario.`);
+      return yes(`Removed "${event.title}" from the calendar.`);
     }
     case 'goal': {
-      if (rank < RANK.member) return no('los residentes de solo lectura no pueden añadir metas.');
+      if (rank < RANK.member) return no('read-only residents can\'t add goals.');
       const text = tidy(op.text, 160);
-      if (!text) return no('una meta necesita texto.');
+      if (!text) return no('a goal needs text.');
       house.goals.push({ id: house.nextId++, text, done: false, by: actor, week: weekOf(now) });
-      return yes(`Meta semanal añadida: "${text}".`);
+      return yes(`Weekly goal added: "${text}".`);
     }
     case 'check': {
-      if (rank < RANK.member) return no('los residentes de solo lectura no pueden marcar metas.');
+      if (rank < RANK.member) return no('read-only residents can\'t check goals.');
       const goal = house.goals.find((g) => g.id === id);
-      if (!goal) return no(`no existe la meta semanal #${op.id}.`);
+      if (!goal) return no(`there is no weekly goal #${op.id}.`);
       goal.done = op.done !== false;
-      return yes(`Meta semanal "${goal.text}" ${goal.done ? 'marcada' : 'desmarcada'}.`);
+      return yes(`Weekly goal "${goal.text}" ${goal.done ? 'checked' : 'unchecked'}.`);
     }
     case 'drop': {
       const goal = house.goals.find((g) => g.id === id);
-      if (!goal) return no(`no existe la meta semanal #${op.id}.`);
-      if (!canManage(goal)) return no(`"${goal.text}" la puso ${display(goal.by)}.`);
+      if (!goal) return no(`there is no weekly goal #${op.id}.`);
+      if (!canManage(goal)) return no(`"${goal.text}" was set by ${display(goal.by)}.`);
       house.goals = house.goals.filter((g) => g !== goal);
-      return yes(`Meta semanal "${goal.text}" eliminada.`);
+      return yes(`Weekly goal "${goal.text}" removed.`);
     }
     case 'tell': {
-      if (rank < RANK.member) return no('los residentes de solo lectura no pueden enviar notas.');
-      if (!agents.includes(op.agent)) return no(`no hay ningún residente llamado ${op.agent}.`);
-      if (isGod(op.agent)) return no('God solo recibe instrucciones del dueño.');
-      if (!isMayor(actor) && !isMayor(op.agent)) return no(`los residentes se comunican a través de Mayor, así que envíaselo a Mayor para que se lo pase a ${op.agent}.`);
+      if (rank < RANK.member) return no('read-only residents can\'t send notes.');
+      if (!agents.includes(op.agent)) return no(`there is no resident called ${op.agent}.`);
+      if (isGod(op.agent)) return no('God only takes instructions from the owner.');
+      if (!isMayor(actor) && !isMayor(op.agent)) return no(`residents talk through Mayor, so send it to Mayor to pass on to ${op.agent}.`);
       const text = tidy(op.text, MAX_NOTE);
-      if (!text) return no('una nota necesita texto.');
+      if (!text) return no('a note needs text.');
       const box = (house.inbox[op.agent] ??= []);
-      if (box.length >= MAX_WAITING) return no(`${display(op.agent)} ya tiene ${MAX_WAITING} notas en espera.`);
+      if (box.length >= MAX_WAITING) return no(`${display(op.agent)} already has ${MAX_WAITING} notes waiting.`);
       box.push({ id: house.nextId++, from: actor, text, at: now });
-      return yes(`Le dijo a ${display(op.agent)}: ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
+      return yes(`Told ${display(op.agent)}: ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
     }
     case 'talk': {
-      if (!canTalk) return no('los residentes solo pueden hablar entre sí cuando el dueño lo pide, en su propio chat.');
-      if (!agents.includes(op.agent)) return no(`no hay ningún residente llamado ${op.agent}.`);
-      if (op.agent === actor) return no('no puedes hablar contigo mismo.');
-      if (isGod(op.agent)) return no('God solo recibe instrucciones del dueño.');
+      if (!canTalk) return no('residents can only talk to each other when the owner asks, in their own chat.');
+      if (!agents.includes(op.agent)) return no(`there is no resident called ${op.agent}.`);
+      if (op.agent === actor) return no('you can\'t talk to yourself.');
+      if (isGod(op.agent)) return no('God only takes instructions from the owner.');
       const text = tidy(op.text, MAX_NOTE);
-      if (!text) return no('una charla necesita algo que decir.');
-      return { ...yes(`Va a hablar con ${display(op.agent)}.`), talk: { agent: op.agent, text } };
+      if (!text) return no('a talk needs something to say.');
+      return { ...yes(`Going to talk to ${display(op.agent)}.`), talk: { agent: op.agent, text } };
     }
     case 'tier': {
-      if (rank < RANK.god) return no('solo God o el dueño pueden cambiar los niveles de acceso.');
-      if (!agents.includes(op.agent) || isGod(op.agent) || isMayor(op.agent)) return no(`el acceso de ${op.agent} no se puede cambiar.`);
-      if (!TIERS.includes(op.level)) return no(`los niveles de acceso son ${TIERS.join(', ')}.`);
+      if (rank < RANK.god) return no('only God or the owner can change access levels.');
+      if (!agents.includes(op.agent) || isGod(op.agent) || isMayor(op.agent)) return no(`${op.agent}'s access can't be changed.`);
+      if (!TIERS.includes(op.level)) return no(`the access levels are ${TIERS.join(', ')}.`);
       house.tiers[op.agent] = op.level;
-      return yes(`${display(op.agent)} ahora tiene acceso ${op.level}.`);
+      return yes(`${display(op.agent)} now has ${op.level} access.`);
     }
     case 'model': {
-      if (rank < RANK.owner) return no('solo el dueño puede cambiar el Claude de un residente.');
-      if (!agents.includes(op.agent)) return no(`no hay ningún residente llamado ${op.agent}.`);
+      if (rank < RANK.owner) return no('only the owner can change a resident\'s Claude.');
+      if (!agents.includes(op.agent)) return no(`there is no resident called ${op.agent}.`);
       const level = CLAUDE_LEVELS.find((l) => l.id === op.model);
-      if (!level) return no(`los niveles de Claude son ${CLAUDE_LEVELS.map((l) => l.label).join(', ')}.`);
+      if (!level) return no(`the Claude levels are ${CLAUDE_LEVELS.map((l) => l.label).join(', ')}.`);
       (house.models ??= {})[op.agent] = level.id;
-      return yes(`${display(op.agent)} ahora usa ${level.label}.`);
+      return yes(`${display(op.agent)} now uses ${level.label}.`);
     }
     case 'web': {
-      if (rank < RANK.owner) return no('solo el dueño puede cambiar quién tiene internet.');
-      if (!agents.includes(op.agent)) return no(`no hay ningún residente llamado ${op.agent}.`);
+      if (rank < RANK.owner) return no('only the owner can change who has internet.');
+      if (!agents.includes(op.agent)) return no(`there is no resident called ${op.agent}.`);
       (house.web ??= {})[op.agent] = Boolean(op.on);
-      return yes(`${display(op.agent)} ${op.on ? 'ya puede usar' : 'ya no puede usar'} internet.`);
+      return yes(`${display(op.agent)} ${op.on ? 'can now use' : 'can no longer use'} the internet.`);
     }
     case 'auto': {
-      if (rank < RANK.god) return no('solo God o el dueño pueden cambiar la reunión semanal.');
+      if (rank < RANK.god) return no('only God or the owner can change the weekly meeting.');
       house.meeting.auto = Boolean(op.on);
-      return yes(`La reunión semanal está ${house.meeting.auto ? 'activada' : 'desactivada'}.`);
+      return yes(`The weekly meeting is ${house.meeting.auto ? 'on' : 'off'}.`);
     }
     default:
-      return no('no se entendió esa acción.');
+      return no('that action wasn\'t understood.');
   }
 }
 

@@ -1,5 +1,5 @@
 ' Runs Agent House with no console window, so it can stay on all the time.
-' With /fondo it only starts the server (that's how Windows runs it at logon).
+' With /background (any argument does) it only starts the server (that's how Windows runs it at logon).
 ' Without it, it also opens the app in its own window. The desktop icon does that.
 Const URL = "http://127.0.0.1:3737/"
 Set shell = CreateObject("WScript.Shell")
