@@ -1,0 +1,9 @@
+{
+  "sections": {
+    "Mundo": ["reuters.com", "apnews.com", "bbc.com", "theguardian.com", "elpais.com", "france24.com"],
+    "IA": ["technologyreview.com", "theverge.com", "arstechnica.com", "wired.com", "techcrunch.com"],
+    "Ciencia": ["nature.com", "newscientist.com", "quantamagazine.org", "scientificamerican.com"],
+    "Música": ["pitchfork.com", "rollingstone.com", "billboard.com", "nme.com", "stereogum.com"]
+  },
+  "rules": []
+}

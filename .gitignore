@@ -1,0 +1,4 @@
+node_modules/
+_app/data/
+_app/dist/
+.impeccable/
