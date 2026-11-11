@@ -8,7 +8,7 @@ const house = (over) => ({ today: '2026-11-09', events: [], goals: [], live: nul
 test('a bubble shows the most urgent true thing', () => {
   const busy = agent({ waiting: 2, misses: 1 });
   assert.equal(bubbleOf(busy, { busy: true, activity: 'Reading STATE.md' }, house()).text, 'Reading STATE.md');
-  assert.equal(bubbleOf(busy, {}, house()).text, '2 notes waiting');
+  assert.equal(bubbleOf(busy, {}, house()).text, '1 missed this week', 'notes between residents are not for the owner');
   assert.equal(bubbleOf(agent({ misses: 1 }), {}, house()).text, '1 missed this week');
   assert.equal(bubbleOf(agent(), {}, house()), null);
 });

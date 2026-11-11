@@ -244,7 +244,7 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
   );
 }
 
-function Room({ look, working, phase, asleep, sleeping, room: place }) {
+function Room({ look, working, phase, asleep, sleeping, away, room: place }) {
   const hostRef = useRef(null);
   const canvasRef = useRef(null);
   const [size, setSize] = useState(null);
@@ -275,17 +275,17 @@ function Room({ look, working, phase, asleep, sleeping, room: place }) {
     const s = dev / size.dpr;
     return { s, LW: Math.ceil(size.vw / s), LH: Math.ceil(size.vh / s), focus: Math.ceil(size.free / s), left: Math.ceil(size.left / s) };
   }, [size]);
-  const room = useMemo(() => (view ? buildRoom(view, look, phase, place) : null), [view, look, phase, place]);
+  const room = useMemo(() => (view ? buildRoom(view, look, phase, place, away) : null), [view, look, phase, place, away]);
 
   useEffect(() => {
     if (!room) return undefined;
     const g = canvasRef.current.getContext('2d');
     const still = reducedMotion();
-    const frame = () => drawRoom(g, room, look, working, still ? 0 : performance.now(), entrance.current, sleeping);
+    const frame = () => drawRoom(g, room, look, working, still ? 0 : performance.now(), entrance.current, sleeping, away);
     frame();
     const id = setInterval(frame, FRAME_MS);
     return () => clearInterval(id);
-  }, [room, look, working, sleeping]);
+  }, [room, look, working, sleeping, away]);
 
   return (
     <div className="room-host" ref={hostRef} aria-hidden="true">
@@ -392,7 +392,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
 
   return (
     <div className="home">
-      <Room look={look} working={Boolean(live.busy)} phase={phase} asleep={wokenUp} sleeping={sleeping} room={room} />
+      <Room look={look} working={Boolean(live.busy)} away={isJobs(agent.name) && Boolean(jobs?.busy)} phase={phase} asleep={wokenUp} sleeping={sleeping} room={room} />
 
       <div className="home-side">
         <button type="button" className="btn" onClick={onLeave}>Back to the island</button>

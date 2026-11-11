@@ -6,7 +6,6 @@ import { COMMON, NEWS, REPORTER, bubbleOf, isGod, isJobs, isMayor, jobOf, moodOf
 const MIN_RX = 322;
 const MANOR = { x: 0, y: -66, big: true };
 const WALK_SPEED = 20; // logical pixels a second
-const RUSH = 3; // how much faster someone heads home when real work comes in
 const FRAME_MS = 30; // drawn in step with the display, about 30 times a second
 const SEAT_RX = 46;
 const SEAT_RY = 24;
@@ -98,19 +97,18 @@ function stepNpc(npc, { plot, goal }, dt, ms, still) {
   const edge = spokeEnd(door);
   const key = goal ? [goal.at, goal.x, goal.y, Boolean(goal.inside)].join('|') : 'stroll';
 
-  // A walk in progress finishes first, so nobody cuts through a house to change plans. Work can't wait: it turns back along the path.
-  if (npc.key !== key && (!npc.path.length || goal?.rush)) {
+  // A walk in progress finishes first, so nobody cuts through a house to change plans. Work can't wait: it's already home.
+  if (npc.key !== key && (!npc.path.length || goal?.now)) {
     const opening = npc.key === null;
     npc.key = key;
     npc.arrive = goal;
-    if (opening && goal) {
-      // Opening the app finds everyone already at it.
-      Object.assign(npc, { x: goal.x, y: goal.y, loc: goal.at, inside: Boolean(goal.inside), dir: goal.dir ?? 'down', flip: Boolean(goal.flip) });
+    if ((opening || goal?.now) && goal) {
+      // Opening the app finds everyone already at it, and a task finds its resident already inside.
+      Object.assign(npc, { x: goal.x, y: goal.y, loc: goal.at, inside: Boolean(goal.inside), dir: goal.dir ?? 'down', flip: Boolean(goal.flip), path: [], walking: false });
     } else {
       if (npc.inside && !goal?.inside) Object.assign(npc, { inside: false, x: door.x, y: door.y, loc: 'door' });
       if (goal && !npc.inside) {
         npc.path = routeTo(npc, goal, door, edge);
-        npc.rush = Boolean(goal.rush);
         npc.loc = goal.at;
       }
       npc.until = ms + Math.random() * 3000;
@@ -121,7 +119,7 @@ function stepNpc(npc, { plot, goal }, dt, ms, still) {
     const target = npc.path[0];
     const dx = target.x - npc.x, dy = target.y - npc.y;
     const dist = Math.hypot(dx, dy);
-    const stride = still ? Infinity : WALK_SPEED * dt * (npc.rush ? RUSH : 1);
+    const stride = still ? Infinity : WALK_SPEED * dt;
     npc.walking = true;
     npc.dir = Math.abs(dx) > Math.abs(dy) ? 'side' : dy > 0 ? 'down' : 'up';
     npc.flip = dx < 0;
@@ -138,7 +136,6 @@ function stepNpc(npc, { plot, goal }, dt, ms, still) {
       npc.dir = npc.arrive?.dir ?? 'down';
       npc.flip = Boolean(npc.arrive?.flip);
       npc.until = ms + 2000 + Math.random() * 7000;
-      npc.rush = false; // the run home ends at the door
       if (npc.arrive?.inside) npc.inside = true;
     }
   } else if (!goal && !still && ms > npc.until) {
@@ -307,8 +304,8 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
     const angle = (seats.indexOf(agent.name) / Math.max(seats.length, 1)) * Math.PI * 2;
     const seat = { x: Math.cos(angle) * SEAT_RX, y: Math.sin(angle) * SEAT_RY + 6 };
     let goal = null; // null means strolling
-    // Real work happens at home only: the agent heads in at a run, and works once inside.
-    if (state === 'working' || state === 'asleep') goal = { at: 'door', x: plot.x, y: plot.y + 9, inside: true, rush: state === 'working' };
+    // Real work happens at home only: the moment a task starts, the agent is already inside.
+    if (state === 'working' || state === 'asleep') goal = { at: 'door', x: plot.x, y: plot.y + 9, inside: true, now: state === 'working' };
     else if (state === 'meeting') goal = { at: 'plaza', ...seat, dir: seat.y > 0 ? 'up' : 'down' };
     else if (state === 'work') goal = jobSpot(jobOf(agent.name), plot, rx);
     else if (state === 'eat') goal = { at: 'plaza', fx: 'eat', ...EAT_SEATS[index % EAT_SEATS.length] };
@@ -322,7 +319,7 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
         windows: state === 'asleep' ? 'dark' : state === 'working' || phase !== 'day' ? 'lit' : 'plain',
         smoke: state === 'working',
         zzz: state === 'asleep',
-        mail: Boolean(agent.waiting),
+        mail: Boolean(live[agent.name]?.unread), // only a reply to the owner, never notes between residents
         boxes: !agent.lastVisit,
       },
       bubble: bubbleOf(agent, live[agent.name], house),
@@ -352,7 +349,7 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
       });
       const crier = personSprite(lookOf(REPORTER), 'down', 0);
       const riders = [crier, jobs && personSprite(lookOf(jobs.name), 'down', 0)];
-      if (!voyages.current[0].t) actors.push({ c: crier, x: cx + dock.news.x, y: cy + dock.news.y });
+      if (!voyages.current[0].t && phase !== 'night') actors.push({ c: crier, x: cx + dock.news.x, y: cy + dock.news.y });
       planRef.current.forEach((r, seed) => {
         const name = r.agent.name;
         const look = lookOf(name);
@@ -471,7 +468,7 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
               </div>
             )}
             {house && (
-              <button type="button" className="spot spot-dock" style={box(dock.news.x - 11, dock.news.y - 22, 22, 24)} onClick={(e) => go(NEWS, e)} aria-label={`News from the dock.${crierBubble ? ` ${crierBubble.text}.` : ''}`}>
+              <button type="button" className="spot spot-dock" style={phase === 'night' ? box(dock.boats[0].x - 17, dock.boats[0].y - 28, 34, 28) : box(dock.news.x - 11, dock.news.y - 22, 22, 24)} onClick={(e) => go(NEWS, e)} aria-label={`News from the dock${phase === 'night' ? ", on the crier's boat" : ''}.${crierBubble ? ` ${crierBubble.text}.` : ''}`}>
                 {crierBubble && <Think bubble={crierBubble} />}
                 <span className="plaque">News</span>
               </button>

@@ -57,7 +57,6 @@ export function bubbleOf(agent, live = {}, house, now = Date.now()) {
   if (live.unread) return { icon: 'letter', text: 'Has a reply for you' };
   if (live.busy) return { icon: 'dots', text: live.activity || 'Thinking' };
   if (house?.live?.speaker === agent.name) return { icon: 'dots', text: 'Has the floor' };
-  if (agent.waiting) return { icon: 'letter', text: `${plural(agent.waiting, 'note')} waiting` };
   const bumped = house?.events.find((e) => e.by === agent.name && e.bumped && e.day >= house.today);
   if (bumped) return { icon: 'calendar', text: `“${bumped.title}” was bumped` };
   if (isMayor(agent.name) && !agent.visitedToday) return { icon: 'alert', text: 'No check-in yet today' };
@@ -105,7 +104,6 @@ export function newsOf(agents, house, live = {}) {
 
   for (const a of agents) {
     if (live[a.name]?.unread) add(`${shown(a.name)} has a reply for you.`, a.name);
-    if (a.waiting) add(`${shown(a.name)} has ${plural(a.waiting, 'note')} waiting.`, a.name);
     const items = a.today?.items ?? [];
     if (items.length) add(`${shown(a.name)}: ${items.filter((i) => i.status === 'done').length} of ${items.length} done today.`, a.name);
     if (a.misses) add(`${shown(a.name)}: ${a.misses} missed this week.`, a.name);

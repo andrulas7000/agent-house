@@ -74,7 +74,7 @@ These folder names have special powers in the code (`isMayor`, `isGod`, `isJobs`
 - **Extra folders for a resident:** create `_app/data/extra-dirs.json` with something like `{"Engineer": ["C:\\path\\to\\a\\project"]}`. Only that resident can read and edit there.
 - **Google Calendar:** create a calendar named exactly `Agent House` and the square's blocks are copied there. Residents read your calendar through your Claude connector, read-only.
 - **Notion:** run `_app/Connect Notion.bat` with an internal integration limited to the pages you want to share. The token is saved in `_app/data/notion/token.txt`, which never goes into git.
-- **CV to PDF:** `winget install TectonicTypesetting.Tectonic` so "Compile PDF" works.
+- **CV to PDF:** download the Windows `.zip` from https://github.com/tectonic-typesetting/tectonic/releases, unzip it and add the folder with `tectonic.exe` to the PATH so "Compile PDF" works.
 
 The easiest way is to open Claude Code in this folder and ask it for the changes: `CLAUDE.md` explains how the app is built.
 

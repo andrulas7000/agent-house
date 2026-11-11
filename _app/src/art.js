@@ -234,7 +234,7 @@ function paintPerson(r, look, dir, frame, mood, open) {
     if (look.phones) {
       const cup = '#e0553f', cupLit = '#f4876b', band = '#5d648f';
       r(3, 0, 8, 1, band);
-      if (dir === 'side') { r(5, 4, 3, 4, cup); r(5, 4, 1, 4, dim(cup, 0.3)); }
+      if (dir === 'side') { r(6, 1, 1, 3, band); r(5, 4, 3, 4, cup); r(5, 4, 1, 4, dim(cup, 0.3)); } // the band comes down over the head to the cup
       else if (dir === 'up') { r(1, 1, 1, 3, band); r(12, 1, 1, 3, band); r(0, 4, 2, 4, cup); r(12, 4, 2, 4, cupLit); }
       else { r(1, 1, 1, 3, band); r(12, 1, 1, 3, band); r(0, 4, 2, 4, cup); r(12, 4, 2, 4, cupLit); }
     }
@@ -288,8 +288,8 @@ function paintPerson(r, look, dir, frame, mood, open) {
     r(2, 5, 3, 4, hairDim);
     r(9, 5, 3, 4, hairLit);
     r(3, 9, 8, 1, hairDim);
-    if (look.hairStyle === 'long') { r(0, 3, 2, 8, hairDim); r(12, 3, 2, 8, hairLit); }
-    if (look.hairStyle === 'puff') { r(0, 4, 2, 3, hairDim); r(12, 4, 2, 3, hairLit); }
+    if (look.hairStyle === 'long' && !hat) { r(0, 3, 2, 8, hairDim); r(12, 3, 2, 8, hairLit); }
+    if (look.hairStyle === 'puff' && !hat) { r(0, 4, 2, 3, hairDim); r(12, 4, 2, 3, hairLit); }
     hairTop();
     headgear();
     return;
@@ -1302,7 +1302,7 @@ function stage(view) {
 }
 
 /** Jobs works out on the dock: sea behind, planks underfoot, the board of openings and its boat. */
-function buildDock(view, phase) {
+function buildDock(view, phase, away) {
   const { LW, LH } = view;
   const { c, g, cx, half, lower, R } = stage(view);
   const night = phase === 'night';
@@ -1317,7 +1317,7 @@ function buildDock(view, phase) {
   R(0, deck - 18, LW, 18, night ? '#1c2f5a' : '#3a92c8');
   R(0, deck - 18, LW, 1, night ? '#2a4070' : '#8fd0ea');
   for (let y = deck - 15; y < deck; y += 4) for (let x = (y * 7) % 23; x < LW; x += 23) R(x, y, 6, 1, night ? '#2a4070' : '#6fbce0');
-  g.drawImage(boat('#4a66c4'), cx - half + 4, deck - 26);
+  if (!away) g.drawImage(boat('#4a66c4'), cx - half + 4, deck - 26); // out at sea while Jobs hunts
   for (let y = deck, row = 0; y < LH; y += 8, row++) {
     R(0, y, LW, 8, ['#b07a45', '#a8703f', '#bb8550'][row % 3]);
     R(0, y + 7, LW, 1, '#7a4a28');
@@ -1456,9 +1456,9 @@ function buildBoardroom(view, phase) {
 }
 
 /** A home seen from the same three-quarter angle as the island. Fills the window, centred on the resident. */
-export function buildRoom(view, look, phase, room) {
+export function buildRoom(view, look, phase, room, away = false) {
   if (room === 'interviews') return buildBoardroom(view, phase);
-  if (room === 'port') return buildDock(view, phase);
+  if (room === 'port') return buildDock(view, phase, away);
   if (themeOf(look.id) === 'sky') return buildHeaven(view, phase);
   const { LW, LH } = view;
   const c = make(LW, LH);
@@ -1578,11 +1578,12 @@ function drawEntrance(g, room, look, ms, { asleep, start }) {
   return true;
 }
 
-export function drawRoom(g, room, look, working, ms, entrance, sleeping = false) {
+export function drawRoom(g, room, look, working, ms, entrance, sleeping = false, away = false) {
   g.imageSmoothingEnabled = false;
   g.drawImage(room.c, 0, 0);
   const beat = Math.floor(ms / 240);
   const inFront = () => { if (room.front) g.drawImage(room.front, 0, 0); }; // whatever stands between you and the resident
+  if (away) return inFront(); // nobody home
   if (working) {
     if (room.desk.screenX !== undefined) {
       g.fillStyle = beat % 2 ? '#7df0c8' : '#5fd8b0';
