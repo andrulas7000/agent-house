@@ -35,7 +35,7 @@ function Block({ event, lane, lanes, selected, onOpen }) {
   const body = (
     <>
       <b>{event.title}</b>
-      <small>{event.time}</small>
+      <small>{event.time}{event.owner ? ' · with you' : ''}</small>
     </>
   );
   if (!event.id) return <div className={`${classes} is-draft`} style={style}>{body}</div>;
@@ -46,7 +46,7 @@ function Block({ event, lane, lanes, selected, onOpen }) {
       style={style}
       data-id={event.id}
       onClick={() => onOpen(event)}
-      aria-label={`${event.title}, ${dayLabel(event.day)} at ${event.time}, ${event.minutes} minutes, ${whoName(event.by)}${event.bumped ? `, bumped by ${whoName(event.bumped)}` : ''}`}
+      aria-label={`${event.title}, ${dayLabel(event.day)} at ${event.time}, ${event.minutes} minutes, ${whoName(event.by)}${event.owner ? ', to work with you' : ''}${event.bumped ? `, bumped by ${whoName(event.bumped)}` : ''}`}
     >
       {body}
       <span className="block-resize" data-resize />

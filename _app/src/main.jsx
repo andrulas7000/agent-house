@@ -11,6 +11,26 @@ import { shown } from './layout.js';
 const api = (name, action) => `/api/agents/${encodeURIComponent(name)}/${action}`;
 const placeFromUrl = () => decodeURIComponent(location.hash.slice(1)) || null;
 
+/** Two short notes, so a call is heard even when the island isn't in front. */
+function ringTone() {
+  try {
+    const ctx = new AudioContext();
+    [660, 880].forEach((hz, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const at = ctx.currentTime + i * 0.2;
+      osc.type = 'square';
+      osc.frequency.value = hz;
+      gain.gain.setValueAtTime(0.04, at);
+      gain.gain.setValueAtTime(0, at + 0.15);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + 0.16);
+    });
+    setTimeout(() => ctx.close(), 800);
+  } catch { /* no audio, the bubble still rings */ }
+}
+
 function App() {
   const [agents, setAgents] = useState(null);
   const [house, setHouse] = useState(null);
@@ -114,12 +134,13 @@ function App() {
   const goRoom = useCallback((next, event) => iris(() => setRoom(next), event), [iris]);
   const leave = useCallback((event) => go(null, event), [go]);
 
-  const send = async (name, text, files = []) => {
+  // `call` is a call being picked up: the resident speaks first, so there is no message from the owner.
+  const send = async (name, text, files = [], { call, chat: opened } = {}) => {
     const controller = new AbortController();
     controllers.current[name] = controller;
-    const chat = openChats[slotOf(name)];
-    append(chat, { role: 'user', text, files });
-    patchLive(name, { busy: true, chat, activity: 'Thinking', error: null, lastText: text, lastFiles: files });
+    const chat = opened ?? openChats[slotOf(name)];
+    if (!call) append(chat, { role: 'user', text, files });
+    patchLive(name, { busy: true, chat, activity: 'Thinking', error: null, lastText: text, lastFiles: files, lastCall: call });
 
     const handle = (event) => {
       if (event.type === 'activity') patchLive(name, { activity: event.label });
@@ -143,7 +164,7 @@ function App() {
       const res = await fetch(api(name, 'chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, files, chat, room }),
+        body: JSON.stringify({ text, files, chat, room, call: call?.id }),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -167,6 +188,49 @@ function App() {
   };
 
   const stop = (name) => controllers.current[name]?.abort();
+
+  /** The owner unwraps a level-up. Returns an error message, or null. */
+  const giveGift = async (name, gift) => {
+    try {
+      const res = await fetch(api(name, 'gift'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ gift }) });
+      if (!res.ok) return (await res.json()).error;
+      const updated = await res.json();
+      setAgents((list) => list.map((a) => (a.name === name ? { ...a, ...updated } : a)));
+      return null;
+    } catch {
+      return 'The local server stopped responding.';
+    }
+  };
+
+  /** Picking up a call opens a fresh conversation (or the one that failed, when retrying) and the resident starts. */
+  const answer = (name, call, retry) => {
+    const chat = retry ?? crypto.randomUUID();
+    if (!retry) {
+      const note = call.status === 'missed' ? `You returned ${shown(name)}'s missed call` : `You answered ${shown(name)}'s call`;
+      setThreads((t) => ({ ...t, [chat]: [{ at: Date.now(), role: 'note', text: note }] }));
+      setOpenChats((o) => ({ ...o, [slotOf(name)]: chat }));
+    }
+    setHouse((h) => h && { ...h, calls: h.calls.filter((c) => c.id !== call.id) });
+    send(name, '', [], { call, chat });
+  };
+
+  // A call that starts ringing is heard once. A missed one never rings again.
+  const heard = useRef(new Set());
+  useEffect(() => {
+    for (const call of house?.calls ?? []) {
+      if (call.status !== 'ringing' || heard.current.has(call.id)) continue;
+      heard.current.add(call.id);
+      ringTone();
+      if (!document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') new Notification(`${shown(call.agent)} is calling you`, { body: call.why });
+    }
+  }, [house?.calls]);
+
+  useEffect(() => {
+    if (!('Notification' in window) || Notification.permission !== 'default') return undefined;
+    const ask = () => Notification.requestPermission();
+    window.addEventListener('pointerdown', ask, { once: true });
+    return () => window.removeEventListener('pointerdown', ask);
+  }, []);
 
   // Returns the fresh list, or an error message for the list to show.
   const changeChat = async (name, id, init) => {
@@ -242,6 +306,9 @@ function App() {
           onRenameChat={(id, title) => renameChat(current.name, id, title)}
           onDeleteChat={(id) => deleteChat(current.name, id)}
           live={liveNow[current.name] ?? {}}
+          call={house?.calls?.find((c) => c.agent === current.name)}
+          onAnswer={(call, chat) => answer(current.name, call, chat)}
+          onGift={(gift) => giveGift(current.name, gift)}
           phase={phase}
           level={house?.models?.[current.name]}
           onLevel={(model) => act({ do: 'model', agent: current.name, model })}

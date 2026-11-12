@@ -25,7 +25,7 @@ test('a chat is titled by its first line, or its first file', () => {
 });
 
 import { writeFileSync } from 'node:fs';
-import { OWNER, applyOp, googleArgs, googleCalls, settleGoogleSync, startGoogleSync, countMisses, eventsFrom, houseBrief, levelOf, listFolders, meetingDue, parseOps, parseToday, pathsIn, streak, tierOf, webOf, weekOf } from './lib.js';
+import { OWNER, applyOp, callsOf, growthOf, logExchange, googleArgs, googleCalls, settleGoogleSync, startGoogleSync, countMisses, eventsFrom, houseBrief, levelOf, listFolders, meetingDue, parseOps, parseToday, pathsIn, streak, tierOf, webOf, weekOf } from './lib.js';
 
 const emptyHouse = (tiers = {}) => ({ events: [], goals: [], tiers, inbox: {}, nextId: 1, meeting: { auto: true } });
 const slot = (title, time = '16:00') => ({ do: 'add', title, day: '2026-11-10', time, minutes: 60 });
@@ -486,4 +486,76 @@ test('the plan counts as used up only when a window is full, and wakes at the la
   assert.equal(limitUntil({ status: 'rejected', resetsAt: 300 }), 300_000);
   assert.equal(limitUntil({ status: 'rejected', resetsAt: 300, unifiedWindows: { seven_day: { utilization: 1, resetsAt: 900 } } }), 900_000);
   assert.deepEqual(eventsFrom(JSON.stringify({ type: 'rate_limit_event', rate_limit_info: ok })), [{ type: 'limit', until: 0 }]);
+});
+
+test('a resident calls the owner only for a block with them or something urgent', () => {
+  const agents = ['Study', 'Music'];
+  const at = (hhmm) => new Date(`2026-11-11T${hhmm}:00`).getTime();
+  const house = emptyHouse();
+  const add = (actor, op) => applyOp(house, actor, { do: 'add', title: 'Review the thesis', day: '2026-11-11', time: '10:00', minutes: 30, ...op }, { agents });
+
+  assert.equal(add('Study', { owner: true }).ok, true);
+  assert.equal(add('Music', { owner: true, time: '12:00' }).ok, true);
+  assert.equal(add(OWNER, { owner: true, title: 'My block', time: '14:00' }).ok, true);
+  assert.equal(house.events.find((e) => e.by === OWNER).owner, undefined, 'the owner does not call themselves');
+  assert.deepEqual(callsOf(house, at('09:59')), [], 'nothing rings before the block starts');
+
+  const ringing = callsOf(house, at('10:10'));
+  assert.deepEqual(ringing.map((c) => [c.agent, c.kind, c.status]), [['Study', 'block', 'ringing']]);
+  assert.equal(callsOf(house, at('10:31'))[0].status, 'missed', 'unanswered, it becomes a missed call');
+  assert.equal(callsOf(house, at('10:31') + 4 * 864e5).length, 0, 'a missed call is forgotten after a few days');
+
+  house.events[0].answered = at('10:11');
+  assert.deepEqual(callsOf(house, at('10:12')), [], 'answered is answered');
+  applyOp(house, 'Study', { do: 'move', id: house.events[0].id, time: '11:00' }, { agents });
+  assert.equal(house.events[0].answered, undefined, 'a new slot rings again');
+  assert.equal(house.events[0].owner, true, 'and still wants the owner');
+  applyOp(house, 'Music', { do: 'move', id: house.events[0].id, title: 'Another title' }, { agents });
+  assert.equal(applyOp(house, OWNER, { do: 'move', id: house.events[0].id, owner: false }, { agents }).ok, true);
+  assert.equal(house.events[0].owner, true, 'only its holder decides whether it rings');
+
+  const urgent = (actor, withOwner = false, now = at('15:00')) => applyOp(house, actor, { do: 'call', why: ' Needs  your signature ' }, { agents, withOwner, now });
+  assert.equal(urgent('Music', true).ok, false, 'no ringing while the owner is already in the chat');
+  assert.equal(urgent('Music').ok, true);
+  assert.equal(urgent('Music').ok, false, 'one unanswered call at a time');
+  assert.equal(applyOp(house, 'Study', { do: 'call', why: '  ' }, { agents }).ok, false, 'a call says why');
+  assert.equal(applyOp(emptyHouse({ Study: 'read' }), 'Study', { do: 'call', why: 'x' }, { agents }).ok, false, 'read-only residents cannot call');
+  const call = callsOf(house, at('15:05')).find((c) => c.agent === 'Music');
+  assert.deepEqual([call.kind, call.why, call.status], ['urgent', 'Needs your signature', 'ringing']);
+  assert.equal(callsOf(house, at('15:31')).find((c) => c.agent === 'Music').status, 'missed');
+
+  assert.match(houseBrief(emptyHouse(), 'Study', agents), /"do":"call"/);
+  assert.doesNotMatch(houseBrief(emptyHouse(), 'Study', agents, [], undefined, { withOwner: true }), /"do":"call"/, 'the owner is right there');
+});
+
+test('levels come from days talked and goals done, and each level earns one gift to unwrap', () => {
+  const goals = [{ by: 'Music', done: true }, { by: 'Music', done: false }, { by: 'Study', done: true }];
+  const start = growthOf({ days: ['a', 'b'] }, goals, 'Music');
+  assert.deepEqual([start.points, start.level, start.nextAt, start.unwrapped], [5, 2, 7, 1], '2 days and 1 goal of its own');
+  assert.equal(new Set(start.offer).size, 3, 'three different gifts to pick from');
+  assert.deepEqual(growthOf({ days: ['a', 'b'], gifts: [{ id: start.offer[0] }] }, goals, 'Music').offer, [], 'unwrapped is unwrapped');
+  const second = growthOf({ days: Array(7).fill('d'), gifts: [{ id: 'plant' }] }, [], 'Music');
+  assert.equal(second.unwrapped, 1);
+  assert.equal(second.offer.includes('plant'), false, 'never offers one it already has');
+  assert.equal(growthOf({ days: [] }, [], 'Music').level, 1);
+  const veteran = growthOf({ days: Array(200).fill('d') }, [], 'Music');
+  assert.deepEqual([veteran.level > 10, veteran.unwrapped], [true, 10], 'the gifts run out before the levels do');
+});
+
+test('reaching out is remembered for the island, briefly and without the whole message', () => {
+  const house = emptyHouse();
+  const agents = ['Mayor', 'Music'];
+  assert.equal(applyOp(house, 'Mayor', { do: 'tell', agent: 'Music', text: '  Prepare   the single ' }, { agents, now: 5 }).ok, true);
+  assert.deepEqual(house.exchanges.map(({ from, to, kind, gist, at }) => ({ from, to, kind, gist, at })), [{ from: 'Mayor', to: 'Music', kind: 'note', gist: 'Prepare the single', at: 5 }]);
+  for (let i = 0; i < 50; i++) logExchange(house, 'Music', 'Mayor', 'talk', `n${i}`);
+  assert.equal(house.exchanges.length, 40);
+  assert.equal(house.exchanges.at(-1).gist, 'n49');
+  logExchange(house, 'Music', 'Mayor', 'note', 'x'.repeat(200));
+  assert.equal(house.exchanges.at(-1).gist.length, 80);
+});
+
+test('an interview or an offer is stamped when the owner sets it, so the dock can celebrate', () => {
+  const board = { items: [{ url: 'u', status: 'new' }], gone: [] };
+  assert.equal(changeJob(board, { action: 'status', url: 'u', status: 'interview' }, 123), null);
+  assert.deepEqual(board.items[0], { url: 'u', status: 'interview', changed: 123 });
 });

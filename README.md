@@ -34,6 +34,7 @@ browser (React + canvas)  ──HTTP──▶  _app/server.js (Node, 127.0.0.1 o
 1. Clone or download this repo anywhere. This folder is the island.
 2. Double-click `_app/Open Agent House.bat`. The first time it installs what it needs; then it builds the app, opens it in the browser and leaves a black window open: that's the server.
 3. To keep it running without the black window, use `_app/Agent House.vbs`. If it's already running it just opens the window; if not, it starts it hidden.
+4. For an icon on the desktop: right-click `_app/Agent House.vbs` → Show more options → Create shortcut, and move the shortcut to the desktop. In its Properties → Change Icon, pick `_app/Agent House.ico`.
 
 ### Start it when the computer starts
 
@@ -48,7 +49,8 @@ That way the crier brings the news every morning even if you don't open anything
 | Place | What's there |
 |---|---|
 | **Houses** | Click a house or its resident to go in. On the right, the chat (several conversations, attachments, drag and drop files); on the left, their room. |
-| **Square** | Shared weekly calendar, weekly goals, group meetings (on demand or every Sunday) and the Residents tab: each one's Claude level, calendar access and internet. |
+| **Square** | Shared weekly calendar, weekly goals, group meetings (on demand or every Sunday) and the Residents tab: each one's Claude level, calendar access and internet. A resident can book a block "with you": when it starts, it calls you (a phone bubble, a ring and a notification), and when you pick up it speaks first. |
+| **Island life** | Each resident levels up with the days you talk to it and the weekly goals it gets done, and lets you pick a gift for its home. Notes and talks between residents are carried in person to the other's door, there are fireworks when every weekly goal is done, and whoever is asleep dreams of the last thing it did. During the day they follow a routine with some variety: work, chat in the square, nap, play ball or run laps. Everything about their work comes from real data. |
 | **Dock** | The crier with the day's paper, and Jobs' stall. |
 | **The cloud** | Above the map (scroll up with the mouse wheel) lives God. |
 
@@ -88,7 +90,7 @@ node node_modules/vite/bin/vite.js build   # rebuilds the interface; reload the 
 npm start                                  # builds and starts the server at http://127.0.0.1:3737
 ```
 
-A change to `server.js`, `lib.js` or `src/layout.js` needs a server restart; opening `Open Agent House.bat` again replaces the old one. All the art is drawn in code in `src/art.js`, at whole-number scales.
+A change to `server.js`, `lib.js`, `office.js` or `src/layout.js` needs a server restart; opening `Open Agent House.bat` again replaces the old one. All the art is drawn in code in `src/art.js`, at whole-number scales.
 
 ## Your data
 

@@ -15,6 +15,19 @@ export const CLAUDE_LEVELS = [
   { id: 'claude-opus-5-5', label: 'Opus 5.5', help: 'Engineer\'s default. Better at hard problems, and uses more of your plan.' },
   { id: 'claude-fable-5-1', label: 'Fable 5.1', help: 'The most capable, and the one that uses the most of your plan.' },
 ];
+/** What a resident can be given when it levels up. `place` is where it goes in the room. */
+export const GIFTS = [
+  { id: 'plant', label: 'Big plant', place: 'floor' },
+  { id: 'lamp', label: 'Floor lamp', place: 'floor' },
+  { id: 'painting', label: 'Painting', place: 'wall' },
+  { id: 'clock', label: 'Wall clock', place: 'wall' },
+  { id: 'pennant', label: 'Pennant', place: 'wall' },
+  { id: 'trophy', label: 'Trophy', place: 'wall' },
+  { id: 'globe', label: 'Globe', place: 'floor' },
+  { id: 'radio', label: 'Radio', place: 'floor' },
+  { id: 'pouf', label: 'Pouf', place: 'floor' },
+  { id: 'aquarium', label: 'Fish tank', place: 'floor' },
+];
 export const JOB_STATUSES = [['new', 'New'], ['apply', 'To apply'], ['applied', 'Applied'], ['interview', 'Interview'], ['offer', 'Offer'], ['dropped', 'Dropped']];
 const DEFAULT_LEVEL = 'claude-sonnet-5-5';
 export const defaultLevelOf = (name) => (/^engineer$/i.test(name) ? 'claude-opus-5-5' : DEFAULT_LEVEL);

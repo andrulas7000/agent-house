@@ -1,6 +1,6 @@
 // All the art in the game, drawn in code on small canvases and scaled up by whole numbers.
 // Everything is original: no sprite, tile or palette here comes from any existing game.
-import { packLane } from './layout.js';
+import { GIFTS, packLane } from './layout.js';
 
 const OUT = '#3b2318';
 const INK = '#2c1b2e';
@@ -899,6 +899,11 @@ function drawFx(g, a, ms) {
       const nx = x + facing * 2 + Math.sin(t * 6) * 3, ny = y - 25 - t * 14;
       px(nx, ny, 1, 4, NAVY); px(nx - 2, ny + 3, 3, 2, NAVY); px(nx + 1, ny, 2, 1, NAVY);
     });
+  } else if (a.fx === 'letter') {
+    const lx = x + facing * 5 - 3, ly = y - 15 - (beat % 2);
+    px(lx, ly, 7, 5, NAVY);
+    px(lx + 1, ly + 1, 5, 3, '#fffaf0');
+    px(lx + 3, ly + 2, 1, 1, '#d9313f');
   } else if (a.fx === 'books') {
     px(x - 4, y - 9, 8, 4, '#fbf4e6'); px(x, y - 9, 1, 4, '#8a7a66');
     if (beat % 4 === 0) px(x + 1, y - 9, 3, 1, '#c6c0b0');
@@ -910,6 +915,11 @@ function drawFx(g, a, ms) {
     px(x - 5 + (beat % 3) * 5, y - 24, 2, 2, '#d9313f');
   } else if (a.fx === 'eat' && a.dir === 'down') {
     if (beat % 2) px(x + (beat % 4 === 1 ? 2 : -3), y - 10, 1, 1, '#e8c27a');
+  } else if (a.fx === 'ball') { // keepy-uppy off the knee
+    const t = (ms / 650 + a.seed * 0.37) % 1;
+    const bx = x + facing * 6, by = y - 4 - Math.round(Math.sin(t * Math.PI) * 11);
+    px(bx - 2, by - 2, 4, 4, NAVY);
+    px(bx - 1, by - 1, 2, 2, '#ffffff');
   } else if (a.fx === 'chat' && Math.floor(ms / 900 + a.seed) % 2) {
     px(x - 5, y - 30, 11, 7, NAVY);
     px(x - 4, y - 29, 9, 5, '#ffffff');
@@ -927,8 +937,52 @@ const glow = (g, x, y, rad, col) => {
   }
 };
 
+const CONFETTI = ['#e0553f', '#ffd95a', '#4a9ccc', '#6fbc5a', '#d96fb0'];
+
+/**
+ * Celebrations, each for something that really happened: fireworks while every goal of the week is done,
+ * confetti over a house whose resident has levelled up, bunting at the dock for an interview or an offer.
+ * With ms at 0 (reduced motion) everything holds still.
+ */
+function drawParty(g, party, ms) {
+  const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); };
+  const still = ms === 0;
+  const fall = (x, y, count, spread) => {
+    for (let i = 0; i < count; i++) {
+      const drop = still ? (i * 7) % 36 : (ms / 45 + i * 11) % 36;
+      px(x - spread / 2 + ((i * 29) % spread) + (still ? 0 : Math.sin(ms / 400 + i) * 2), y - 6 + drop, 2, 2, CONFETTI[i % CONFETTI.length]);
+    }
+  };
+  if (party.fireworks) {
+    const { x, y } = party.fireworks;
+    [[-70, -30, 0], [70, -34, 800], [0, -100, 1600]].forEach(([dx, dy, lag], k) => {
+      const t = still ? 0.4 : ((ms + lag) % 2400) / 2400;
+      if (t > 0.8) return; // dark for a moment between bursts
+      const reach = 4 + t * 26;
+      for (let i = 0; i < 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        const col = CONFETTI[(i + k) % CONFETTI.length];
+        px(x + dx + Math.cos(angle) * reach, y + dy + Math.sin(angle) * reach * 0.9 + t * t * 14, 2, 2, col);
+        if (t > 0.3) px(x + dx + Math.cos(angle) * reach * 0.6, y + dy + Math.sin(angle) * reach * 0.55 + t * t * 14, 1, 1, col);
+      }
+    });
+  }
+  party.confetti.forEach(({ x, y }) => fall(x, y, 12, 36));
+  if (party.bunting) {
+    const { x, y } = party.bunting;
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8;
+      const fx = x - 26 + 52 * t, fy = y - 30 + 5 * Math.sin(Math.PI * t);
+      px(fx, fy, 1, 1, OUT);
+      px(fx - 1, fy + 1, 3, 2, CONFETTI[i % CONFETTI.length]);
+      px(fx, fy + 3, 1, 1, CONFETTI[i % CONFETTI.length]);
+    }
+    fall(x, y - 28, 8, 56);
+  }
+}
+
 /** One frame of the island. Everything that stands on the ground is sorted by its feet. */
-export function drawIsland(g, world, actors, phase, ms, trips = []) {
+export function drawIsland(g, world, actors, phase, ms, trips = [], party = null) {
   g.imageSmoothingEnabled = false;
   g.drawImage(world.base, 0, 0);
   const beat = Math.floor(ms / 420);
@@ -1023,6 +1077,7 @@ export function drawIsland(g, world, actors, phase, ms, trips = []) {
 
   // Last, so evening light doesn't muddy them.
   actors.filter((a) => a.fx).forEach((a) => drawFx(g, a, ms));
+  if (party) drawParty(g, party, ms);
 }
 
 export const drawGod = (g, world, look, x, y, ms) => {
@@ -1261,6 +1316,57 @@ const floorThing = {
 // What each kind of room holds, most important first: a narrow room leaves out the last of each list.
 // wall hangs right of the window, side stands between the bed and the window, floor follows the desk.
 // Each entry is [sprite, the y of its bottom edge]. f is the y where the floor meets the wall.
+// What the owner gave a resident for levelling up, each with the line its bottom edge stands on: a row of the room for wall gifts, an offset below the floor line for the rest.
+const GIFT_ART = {
+  plant: [() => sprite(18, 34, (r) => {
+    r(4, 24, 10, 10, '#b4551f'); r(4, 24, 10, 2, '#d0783c');
+    disc(r, 9, 12, 9, '#2f7a3a'); disc(r, 6, 9, 5, '#4f9e45'); disc(r, 13, 14, 4, '#3f8a42'); r(5, 6, 3, 1, '#86c752');
+  }), 16],
+  lamp: [() => sprite(14, 40, (r) => {
+    r(2, 0, 10, 10, '#ffe08a'); r(2, 0, 10, 2, '#fff1b0'); r(3, 10, 8, 1, '#c98a1e');
+    r(6, 11, 2, 25, '#5a5f6a'); r(2, 36, 10, 4, '#3a3a48');
+  }), 14],
+  painting: [() => sprite(24, 20, (r) => {
+    r(0, 0, 24, 20, '#c98a1e'); r(2, 2, 20, 16, '#7fc8e8'); r(2, 11, 20, 7, '#3f8a42');
+    disc(r, 16, 7, 3, '#ffd76a'); r(5, 6, 6, 2, '#fff'); r(7, 5, 3, 1, '#fff');
+  }), 32],
+  clock: [() => sprite(16, 16, (r) => {
+    disc(r, 8, 8, 8, '#6a4023'); disc(r, 8, 8, 6, '#fff8e7');
+    r(8, 3, 1, 5, '#3b2318'); r(8, 8, 4, 1, '#3b2318'); r(8, 8, 1, 1, '#d9313f');
+  }), 28],
+  pennant: [() => sprite(24, 22, (r) => {
+    r(0, 0, 24, 2, '#6a4023');
+    for (let y = 0; y < 14; y++) r(1, 2 + y, Math.max(1, 22 - Math.round(y * 1.6)), 1, y % 5 < 2 ? '#ffd95a' : '#d9313f');
+  }), 34],
+  trophy: [() => sprite(16, 18, (r) => {
+    r(4, 0, 8, 2, '#ffd95a'); r(3, 2, 10, 6, '#ffd95a'); r(1, 3, 2, 3, '#e0ad45'); r(13, 3, 2, 3, '#e0ad45');
+    r(7, 8, 2, 4, '#e0ad45'); r(4, 12, 8, 2, '#8a5530'); r(5, 3, 2, 4, '#fff1b0'); r(0, 14, 16, 2, '#8a5530');
+  }), 33],
+  globe: [() => sprite(16, 26, (r) => {
+    disc(r, 8, 8, 8, '#3a8fd0'); r(4, 5, 4, 3, '#5aa850'); r(9, 9, 3, 4, '#5aa850'); r(5, 10, 2, 2, '#5aa850');
+    r(7, 16, 2, 8, '#6a4023'); r(3, 24, 10, 2, '#6a4023');
+  }), 14],
+  radio: [() => sprite(22, 16, (r) => {
+    r(0, 4, 22, 12, '#a8683a'); r(0, 4, 22, 2, '#c98a50');
+    disc(r, 7, 11, 4, '#3a2e38'); disc(r, 7, 11, 2, '#8a7a66');
+    r(14, 8, 6, 1, '#fff8e7'); r(14, 11, 6, 1, '#fff8e7'); r(17, 0, 1, 4, '#8fa0b0'); r(13, 0, 5, 1, '#8fa0b0');
+  }), 14],
+  pouf: [() => sprite(22, 12, (r) => {
+    oval(r, 11, 6, 10, 5, '#d9694a'); oval(r, 11, 4, 8, 3, '#e88a68'); r(8, 2, 4, 1, '#ffb090');
+  }), 17],
+  aquarium: [() => sprite(26, 24, (r) => {
+    r(0, 4, 26, 16, '#6fbce0'); r(0, 4, 26, 2, '#cfeaf5'); r(0, 18, 26, 2, '#e8d6a8');
+    r(6, 10, 5, 3, '#f0a12a'); r(11, 11, 2, 1, '#f0a12a'); r(16, 13, 4, 2, '#d9313f'); r(20, 8, 1, 1, '#fff'); r(21, 6, 1, 1, '#fff');
+    r(1, 20, 24, 4, '#6a4023');
+  }), 16],
+};
+/** The gifts a house has, as [sprite, bottom edge] for the wall strip and for the floor. */
+function giftsFor(ids) {
+  const given = ids.map((id) => GIFTS.find((g) => g.id === id)).filter(Boolean);
+  const lay = (place) => given.filter((g) => g.place === place).map((g) => [once(`gift:${g.id}`, GIFT_ART[g.id][0]), GIFT_ART[g.id][1]]);
+  return { wall: lay('wall'), floor: lay('floor') };
+}
+
 const KITS = {
   study: (f) => ({ wall: [[wallThing.board(), 34]], side: [[shelf(21), f], [shelf(22), f]], floor: [] }),
   music: (f) => ({ wall: [[wallThing.poster(), 33], [wallThing.poster(), 33]], side: [[floorThing.speaker(), f + 2], [wallThing.guitar(), WALL_H + 2]], floor: [[floorThing.speaker(), f + 6]] }), // the guitar is tall, so it goes by the window, clear of the back button
@@ -1456,7 +1562,7 @@ function buildBoardroom(view, phase) {
 }
 
 /** A home seen from the same three-quarter angle as the island. Fills the window, centred on the resident. */
-export function buildRoom(view, look, phase, room, away = false) {
+export function buildRoom(view, look, phase, room, away = false, gifts = []) {
   if (room === 'interviews') return buildBoardroom(view, phase);
   if (room === 'port') return buildDock(view, phase, away);
   if (themeOf(look.id) === 'sky') return buildHeaven(view, phase);
@@ -1531,13 +1637,14 @@ export function buildRoom(view, look, phase, room, away = false) {
   const deskY = WALL_H + 22;
   const half = Math.min(cx - left, ROOM_HALF_MAX);
   const kit = KITS[theme](floorY);
+  const given = giftsFor(gifts); // placed first, so when the room is narrow the owner's gifts outlast the furniture
   const bedSprite = bed(look);
   const bedLeft = cx - half;
   g.drawImage(bedSprite, bedLeft, floorY + 22 - bedSprite.height);
   lay(kit.side, bedLeft + bedSprite.width, half - bedSprite.width - WINDOW_HALF);
-  lay(kit.wall, cx + WINDOW_HALF, half - WINDOW_HALF);
+  lay([...given.wall, ...kit.wall], cx + WINDOW_HALF, half - WINDOW_HALF);
   const deskSprite = desk();
-  const onFloor = [[deskSprite, deskY], [plant(), floorY + 16], ...kit.floor];
+  const onFloor = [[deskSprite, deskY], ...given.floor.map(([s, y]) => [s, floorY + y]), [plant(), floorY + 16], ...kit.floor];
   // The resident works here, so the desk stays even when nothing else fits.
   const [deskLeft] = lay(onFloor, cx + DESK_TUCK, Math.max(half - DESK_TUCK, deskSprite.width));
   const deskX = deskLeft + (deskSprite.width >> 1);

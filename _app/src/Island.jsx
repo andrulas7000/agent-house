@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { TABLES, buildIsland, dockOf, drawGod, drawIsland, houseSprite, lookOf, personSprite, plotOf, portraitUrl, seasonOf, spokeEnd, stationOf } from './art.js';
 import { islandView, shown } from './layout.js';
-import { COMMON, NEWS, REPORTER, bubbleOf, isGod, isJobs, isMayor, jobOf, moodOf, newsOf, reporterBubble, stateOf, wordsFor } from './news.js';
+import { COMMON, NEWS, REPORTER, bubbleOf, isGod, isJobs, isMayor, jobOf, moodOf, newsOf, pairUp, partyJob, reporterBubble, stateOf, wordsFor } from './news.js';
 
 const MIN_RX = 322;
 const MANOR = { x: 0, y: -66, big: true };
@@ -12,6 +12,18 @@ const SEAT_RY = 24;
 const SAIL_RATE = 0.12; // share of the trip covered each second
 const TICKER_MS = 6000;
 const PAPER_KEY = 'agent-house-paper';
+const SEEN_KEY = 'agent-house-seen-visits';
+const VISIT_WINDOW_MS = 6 * 36e5; // a note or a talk is only worth a walk if it is this fresh
+const VISIT_STAY_MS = 20_000;
+const FREE_FOR_VISIT = new Set(['stroll', 'social', 'eat', 'work', 'play', 'jog']); // not working, asleep, napping or in a meeting
+const AT_HOME = new Set(['working', 'asleep', 'nap']);
+const JOG_PACE = 2; // runners go this many times walking speed
+const loadSeen = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]')); } catch { return new Set(); }
+};
+const saveSeen = (seen) => {
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-100))); } catch { /* it may play again */ }
+};
 
 // Homes stay put when someone new moves in. Anyone not listed takes the next plot, by name.
 const SETTLED = ['Engineer', 'Music', 'Tutoring', 'Jobs', 'Money'];
@@ -33,11 +45,13 @@ const ICONS = {
   star: ['....Y....', '...YYY...', 'YYYYYYYYY', '.YYYYYYY.', '..YYYYY..', '.YY...YY.'],
   hi: ['..XXXXX..', '.XWWWWWX.', 'XWWXWXWWX', 'XWWWWWWWX', 'XWXWWWXWX', '.XWXXXWX.', '..XXXXX..'],
   calendar: ['RRRRRRRRR', 'RRRRRRRRR', 'XWWWWWWWX', 'XWXWXWXWX', 'XWWWWWWWX', 'XWXWXWXWX', 'XXXXXXXXX'],
+  phone: ['XXX...XXX', 'XNX...XNX', 'XNNXXXNNX', 'XNNNNNNNX', '.XXXXXXX.'],
+  moon: ['..XXXX...', '.XYYYYX..', 'XYYYX....', 'XYYX.....', 'XYYYX....', '.XYYYYX..', '..XXXX...'],
   zzz: ['.XXXXX...', '....X....', '...X.XXX.', '..X....X.', '.XXXXX.X.', '......XXX'],
 };
-const ICON_COLORS = { X: '#3b2318', W: '#fff8e7', R: '#d9313f', Y: '#f0b429', G: '#8fa0b0', B: '#4a9ccc' };
+const ICON_COLORS = { X: '#3b2318', W: '#fff8e7', R: '#d9313f', Y: '#f0b429', G: '#8fa0b0', B: '#4a9ccc', N: '#3fae5a' };
 
-function Icon({ name, scale = 2 }) {
+export function Icon({ name, scale = 2 }) {
   const rows = ICONS[name];
   return (
     <svg className="icon" width={9 * scale} height={rows.length * scale} viewBox={`0 0 9 ${rows.length}`} shapeRendering="crispEdges" aria-hidden="true">
@@ -48,7 +62,7 @@ function Icon({ name, scale = 2 }) {
 
 function Think({ bubble }) {
   return (
-    <span className="think">
+    <span className="think" data-ring={bubble.ring || undefined}>
       <Icon name={bubble.icon} />
       <span className="think-text">{bubble.text}</span>
     </span>
@@ -67,7 +81,31 @@ const SOCIAL_SPOTS = [
   { x: -58, y: 6, dir: 'side' }, { x: -44, y: 6, dir: 'side', flip: true },
   { x: 44, y: 6, dir: 'side' }, { x: 58, y: 6, dir: 'side', flip: true },
 ];
-const BOBBING = new Set(['bench', 'eat', 'teach', 'garden', 'ledger']);
+// In front of the fountain and either side of it, facing each other, clear of the tables and the chatters.
+const PLAY_SPOTS = [
+  { x: -16, y: 32, dir: 'side' }, { x: 16, y: 32, dir: 'side', flip: true },
+  { x: -30, y: -12, dir: 'side' }, { x: 30, y: -12, dir: 'side', flip: true },
+];
+// A lap around the square, run point to point.
+const lapPoint = (npc) => {
+  npc.lap = (npc.lap ?? Math.floor(Math.random() * 8)) + 1;
+  const angle = (npc.lap * Math.PI) / 4;
+  return { x: Math.cos(angle) * 66, y: Math.sin(angle) * 36 };
+};
+const BOBBING = new Set(['bench', 'eat', 'teach', 'garden', 'ledger', 'ball']);
+
+/** Where each chatting resident stands: pairs with a real tie share a pair of facing spots, the rest take what is left. */
+function socialSeating(names, exchanges) {
+  const spot = {};
+  const partner = {};
+  pairUp(names, exchanges).forEach(([a, b], k) => {
+    [spot[a], spot[b]] = [(2 * k) % SOCIAL_SPOTS.length, (2 * k + 1) % SOCIAL_SPOTS.length];
+    [partner[a], partner[b]] = [b, a];
+  });
+  const open = SOCIAL_SPOTS.map((_, i) => i).filter((i) => !Object.values(spot).includes(i));
+  names.filter((n) => !(n in spot)).forEach((n, i) => { spot[n] = open.length ? open[i % open.length] : i % SOCIAL_SPOTS.length; });
+  return { spot, partner };
+}
 
 function jobSpot(job, plot, rx) {
   if (job === 'board') return { at: 'plaza', x: -52, y: -8, dir: 'up', fx: 'board' };
@@ -85,14 +123,26 @@ function newNpc(plot) {
 /** Everyone keeps to the spokes: station to door, door to the square. */
 function routeTo(npc, goal, door, edge) {
   const path = [];
-  if (npc.loc === 'station' && goal.at !== 'station') path.push(door);
-  if ((npc.loc === 'plaza') !== (goal.at === 'plaza')) path.push(edge);
-  if (npc.loc === 'plaza' && goal.at === 'station') path.push(door);
+  let at = npc.loc;
+  if (at === 'visit') { // leaving someone's door: back along their path first
+    path.push(npc.via);
+    at = 'plaza';
+  }
+  if (goal.at === 'visit') { // to someone else's door: out of one's own, then along theirs
+    if (at === 'station') path.push(door);
+    if (at !== 'plaza') path.push(edge);
+    path.push(goal.via, { x: goal.x, y: goal.y });
+    return path;
+  }
+  if (at === 'station' && goal.at !== 'station') path.push(door);
+  if ((at === 'plaza') !== (goal.at === 'plaza')) path.push(edge);
+  if (at === 'plaza' && goal.at === 'station') path.push(door);
   path.push({ x: goal.x, y: goal.y });
   return path;
 }
 
-function stepNpc(npc, { plot, goal }, dt, ms, still) {
+function stepNpc(npc, { plot, goal, state }, dt, ms, still) {
+  const pace = !goal && state === 'jog' ? JOG_PACE : 1;
   const door = { x: plot.x, y: plot.y + 9 };
   const edge = spokeEnd(door);
   const key = goal ? [goal.at, goal.x, goal.y, Boolean(goal.inside)].join('|') : 'stroll';
@@ -102,14 +152,15 @@ function stepNpc(npc, { plot, goal }, dt, ms, still) {
     const opening = npc.key === null;
     npc.key = key;
     npc.arrive = goal;
-    if ((opening || goal?.now) && goal) {
+    if ((opening || goal?.now) && goal && goal.at !== 'visit') {
       // Opening the app finds everyone already at it, and a task finds its resident already inside.
-      Object.assign(npc, { x: goal.x, y: goal.y, loc: goal.at, inside: Boolean(goal.inside), dir: goal.dir ?? 'down', flip: Boolean(goal.flip), path: [], walking: false });
+      Object.assign(npc, { x: goal.x, y: goal.y, loc: goal.at, inside: Boolean(goal.inside), dir: goal.dir ?? 'down', flip: Boolean(goal.flip), path: [], walking: false, via: goal.via ?? npc.via });
     } else {
       if (npc.inside && !goal?.inside) Object.assign(npc, { inside: false, x: door.x, y: door.y, loc: 'door' });
       if (goal && !npc.inside) {
         npc.path = routeTo(npc, goal, door, edge);
         npc.loc = goal.at;
+        npc.via = goal.via ?? npc.via;
       }
       npc.until = ms + Math.random() * 3000;
     }
@@ -119,7 +170,7 @@ function stepNpc(npc, { plot, goal }, dt, ms, still) {
     const target = npc.path[0];
     const dx = target.x - npc.x, dy = target.y - npc.y;
     const dist = Math.hypot(dx, dy);
-    const stride = still ? Infinity : WALK_SPEED * dt;
+    const stride = still ? Infinity : WALK_SPEED * pace * dt;
     npc.walking = true;
     npc.dir = Math.abs(dx) > Math.abs(dy) ? 'side' : dy > 0 ? 'down' : 'up';
     npc.flip = dx < 0;
@@ -135,15 +186,15 @@ function stepNpc(npc, { plot, goal }, dt, ms, still) {
       npc.walking = false;
       npc.dir = npc.arrive?.dir ?? 'down';
       npc.flip = Boolean(npc.arrive?.flip);
-      npc.until = ms + 2000 + Math.random() * 7000;
+      npc.until = pace > 1 ? 0 : ms + 2000 + Math.random() * 7000; // a runner doesn't stop between points
       if (npc.arrive?.inside) npc.inside = true;
     }
   } else if (!goal && !still && ms > npc.until) {
-    const home = npc.loc === 'plaza' && Math.random() >= 0.68;
-    npc.path = routeTo(npc, home ? { at: 'door', ...door } : { at: 'plaza', ...pointInPlaza() }, door, edge);
+    const home = pace === 1 && npc.loc === 'plaza' && Math.random() >= 0.68;
+    npc.path = routeTo(npc, home ? { at: 'door', ...door } : { at: 'plaza', ...(pace > 1 ? lapPoint(npc) : pointInPlaza()) }, door, edge);
     npc.loc = home ? 'door' : 'plaza';
   }
-  return npc.walking ? [0, 1, 0, 2][Math.floor(ms / 130) % 4] : 0;
+  return npc.walking ? [0, 1, 0, 2][Math.floor((ms * pace) / 130) % 4] : 0;
 }
 
 /** A dialog that closes like its own back button when you click outside it. Returns its ref and the props that do that. */
@@ -247,6 +298,7 @@ function Paper({ open, news, today, onClose, onGo }) {
 export default function Island({ agents, live, house, active, now, phase, onGo, onMoreNews }) {
   const hostRef = useRef(null);
   const scrollRef = useRef(null);
+  const worldRef = useRef(null);
   const canvasRef = useRef(null);
   const npcEls = useRef({});
   const npcs = useRef({});
@@ -255,6 +307,11 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
   const [dispatch, setDispatch] = useState(false);
   const voyages = useRef([{ t: 0, flip: false }, { t: 0, flip: false }]); // the reporter's boat, then Jobs'
   const [tick, setTick] = useState(0);
+  const [visit, setVisit] = useState(null); // a note or a talk being taken to someone's door, one at a time
+  const visitRef = useRef(null);
+  const arrivedRef = useRef(0);
+  const seenRef = useRef(null);
+  visitRef.current = visit;
 
   const god = agents?.find((a) => isGod(a.name));
   const residents = useMemo(() => {
@@ -299,17 +356,27 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
   }, [view]);
 
   const seats = house?.live?.seats ?? [];
+  const states = residents.map(({ agent }) => (house?.asleep && !live[agent.name]?.busy ? 'asleep' : stateOf(agent, live[agent.name], seats.includes(agent.name), now)));
+  const { spot: socialSpot, partner } = socialSeating(residents.filter((_, i) => states[i] === 'social').map((r) => r.agent.name), house?.exchanges);
+  const freeNames = residents.filter((_, i) => FREE_FOR_VISIT.has(states[i])).map((r) => r.agent.name).join('|');
+  const trip = visit && freeNames.split('|').includes(visit.from) ? visit : null;
+  const hostPlot = trip && residents.find((r) => r.agent.name === trip.to)?.plot;
   const plan = residents.map(({ agent, plot }, index) => {
-    const state = house?.asleep && !live[agent.name]?.busy ? 'asleep' : stateOf(agent, live[agent.name], seats.includes(agent.name), now);
+    const state = states[index];
     const angle = (seats.indexOf(agent.name) / Math.max(seats.length, 1)) * Math.PI * 2;
     const seat = { x: Math.cos(angle) * SEAT_RX, y: Math.sin(angle) * SEAT_RY + 6 };
     let goal = null; // null means strolling
     // Real work happens at home only: the moment a task starts, the agent is already inside.
-    if (state === 'working' || state === 'asleep') goal = { at: 'door', x: plot.x, y: plot.y + 9, inside: true, now: state === 'working' };
+    if (AT_HOME.has(state)) goal = { at: 'door', x: plot.x, y: plot.y + 9, inside: true, now: state === 'working' };
     else if (state === 'meeting') goal = { at: 'plaza', ...seat, dir: seat.y > 0 ? 'up' : 'down' };
     else if (state === 'work') goal = jobSpot(jobOf(agent.name), plot, rx);
     else if (state === 'eat') goal = { at: 'plaza', fx: 'eat', ...EAT_SEATS[index % EAT_SEATS.length] };
-    else if (state === 'social') goal = { at: 'plaza', fx: 'chat', ...SOCIAL_SPOTS[index % SOCIAL_SPOTS.length] };
+    else if (state === 'social') goal = { at: 'plaza', fx: 'chat', ...SOCIAL_SPOTS[socialSpot[agent.name]] };
+    else if (state === 'play') goal = { at: 'plaza', fx: 'ball', ...PLAY_SPOTS[index % PLAY_SPOTS.length] };
+    // Taking a note or a talk to someone's door: the visitor goes, and the host, if it is free, comes out to meet them.
+    const visiting = hostPlot && agent.name === trip.from;
+    if (visiting) goal = { at: 'visit', x: hostPlot.x + 9, y: hostPlot.y + 11, dir: 'side', flip: true, fx: trip.kind === 'talk' ? 'chat' : 'letter', via: spokeEnd({ x: hostPlot.x, y: hostPlot.y + 9 }) };
+    else if (hostPlot && agent.name === trip.to && FREE_FOR_VISIT.has(state)) goal = { at: 'door', x: hostPlot.x - 4, y: hostPlot.y + 11, dir: 'side', flip: false, fx: trip.kind === 'talk' ? 'chat' : undefined };
     return {
       agent,
       plot,
@@ -318,15 +385,43 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
       status: {
         windows: state === 'asleep' ? 'dark' : state === 'working' || phase !== 'day' ? 'lit' : 'plain',
         smoke: state === 'working',
-        zzz: state === 'asleep',
+        zzz: state === 'asleep' || state === 'nap',
         mail: Boolean(live[agent.name]?.unread), // only a reply to the owner, never notes between residents
         boxes: !agent.lastVisit,
       },
-      bubble: bubbleOf(agent, live[agent.name], house),
+      bubble: visiting
+        ? { icon: 'letter', text: `${trip.kind === 'talk' ? 'Went to talk with' : 'Taking a note to'} ${shown(trip.to)}: “${trip.gist}”` }
+        : bubbleOf(agent, live[agent.name], house, undefined, { asleep: state === 'asleep' || state === 'nap' }),
+      words: visiting ? `Visiting ${shown(trip.to)}` : state === 'social' && partner[agent.name] ? `Chatting with ${shown(partner[agent.name])}` : wordsFor(state, agent.name),
     };
   });
   const planRef = useRef(plan);
   planRef.current = plan;
+  // The next visit: the oldest fresh exchange nobody has walked yet, once its sender is free to go.
+  useEffect(() => {
+    if (!active) return;
+    if (visit) {
+      if (!freeNames.split('|').includes(visit.from)) setVisit(null); // it got busy, so the visit waits for another time
+      return;
+    }
+    seenRef.current ??= loadSeen();
+    const now = Date.now();
+    const next = (house?.exchanges ?? [])
+      .filter((e) => e.at > now - VISIT_WINDOW_MS && !seenRef.current.has(e.id) && freeNames.split('|').includes(e.from) && residents.some((r) => r.agent.name === e.to))
+      .sort((a, b) => a.at - b.at)[0];
+    if (next) {
+      arrivedRef.current = 0;
+      setVisit(next);
+    }
+  }, [active, visit, freeNames, house?.exchanges]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Real achievements get a party.
+  const partyRef = useRef(null);
+  partyRef.current = {
+    fireworks: Boolean(house?.goals.length) && house.goals.every((g) => g.done) && (phase === 'dusk' || phase === 'night'),
+    houses: residents.filter((r) => r.agent.unwrapped > 0).map(({ agent, plot }) => ({ x: plot.x, y: plot.y - houseSprite(lookOf(agent.name), Boolean(plot.big)).H })),
+    dock: Boolean(partyJob(house)),
+  };
   const sailingRef = useRef([]);
   sailingRef.current = [house?.news?.busy, house?.jobs?.busy];
 
@@ -335,12 +430,23 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
     const g = canvasRef.current.getContext('2d');
     const still = reducedMotion();
     let last = performance.now();
+    // Signs never hide anyone: a plaque fades while a resident stands or walks under it. Measured once a second, since signs don't move.
+    let plaques = [];
+    let measured = -Infinity;
+    const measure = () => {
+      const origin = worldRef.current.getBoundingClientRect();
+      plaques = [...worldRef.current.querySelectorAll('.plaque')].map((el) => {
+        const r = el.getBoundingClientRect();
+        return { el, l: r.left - origin.left, t: r.top - origin.top, r: r.right - origin.left, b: r.bottom - origin.top };
+      });
+    };
     const frame = () => {
       const ms = performance.now();
       const dt = Math.min(0.4, (ms - last) / 1000);
       last = ms;
       const { s, cx, cy } = view;
       const actors = [];
+      const people = [];
       const stride = still ? 1 : dt * SAIL_RATE;
       voyages.current.forEach((voyage, i) => {
         const heading = sailingRef.current[i] ? 1 : 0;
@@ -363,14 +469,38 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
           el.style.transform = `translate(${Math.round(cx + npc.x - 8) * s}px, ${Math.round(cy + npc.y - 20) * s}px)`;
         }
         if (!npc.inside && !aboard) {
-          const fx = npc.walking ? null : npc.arrive?.fx;
+          const fx = npc.arrive?.fx === 'letter' ? 'letter' : npc.walking ? null : npc.arrive?.fx; // a letter is carried the whole way
           const speaking = r.state === 'meeting' && house?.live?.speaker === name;
           const hop = speaking && Math.floor(ms / 300) % 2 ? 2 : BOBBING.has(fx) && Math.floor(ms / 280) % 2 ? 1 : 0;
           const st = npc.arrive?.st;
           actors.push({ c: personSprite(look, npc.dir, step), x: cx + npc.x, y: cy + npc.y - hop, flip: npc.flip, dir: npc.dir, fx, seed, st: st && { x: cx + st.x, y: cy + st.y } });
+          people.push({ l: (cx + npc.x - 7) * s, r: (cx + npc.x + 7) * s, t: (cy + npc.y - 20) * s, b: (cy + npc.y) * s });
         }
       });
-      drawIsland(g, world, actors, phase, still ? 0 : ms, voyages.current.map((v, i) => ({ ...v, rider: riders[i] })));
+      if (ms - measured > 1000) {
+        measure();
+        measured = ms;
+      }
+      plaques.forEach((p) => p.el.toggleAttribute('data-under', people.some((q) => q.l < p.r && q.r > p.l && q.t < p.b && q.b > p.t)));
+      // Whoever took a note or a talk stays a while at the door, then the visit is over.
+      const going = visitRef.current;
+      const walker = going && npcs.current[going.from];
+      if (walker && !walker.path.length && walker.loc === 'visit' && walker.arrive?.at === 'visit') {
+        arrivedRef.current ||= ms;
+        if (ms - arrivedRef.current > VISIT_STAY_MS) {
+          seenRef.current.add(going.id);
+          saveSeen(seenRef.current);
+          arrivedRef.current = 0;
+          setVisit(null);
+        }
+      }
+      const party = partyRef.current;
+      const celebration = {
+        fireworks: party.fireworks ? { x: cx, y: cy } : null,
+        confetti: party.houses.map((h) => ({ x: cx + h.x, y: cy + h.y })),
+        bunting: party.dock ? { x: cx + dock.stall.x, y: cy + dock.stall.y } : null,
+      };
+      drawIsland(g, world, actors, phase, still ? 0 : ms, voyages.current.map((v, i) => ({ ...v, rider: riders[i] })), celebration);
       if (god) drawGod(g, world, lookOf(god.name), cx, cy + view.godY, still ? 0 : ms);
     };
     frame();
@@ -422,16 +552,16 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
     <div className="island" ref={hostRef}>
       <div className="island-view" ref={scrollRef} style={{ overflow: view?.pans ? 'auto' : 'hidden' }}>
         {view && (
-          <div className="world" style={{ width: view.LW * view.s, height: view.LH * view.s }}>
+          <div className="world" ref={worldRef} style={{ width: view.LW * view.s, height: view.LH * view.s }}>
             <canvas ref={canvasRef} width={view.LW} height={view.LH} />
             {house && (
               <button type="button" className="spot spot-square" style={box(-74, -40, 148, 80)} onClick={(e) => go(COMMON, e)} aria-label={`Town square. ${goalsDone} of ${goalsTotal} weekly goals done.`}>
                 <span className="plaque">Town square</span>
               </button>
             )}
-            {plan.map(({ agent, plot, state, bubble }) => {
+            {plan.map(({ agent, plot, state, bubble, words }) => {
               const { W, H } = houseSprite(lookOf(agent.name), Boolean(plot.big));
-              const home = state === 'working' || state === 'asleep';
+              const home = AT_HOME.has(state);
               return (
                 <button
                   type="button"
@@ -439,14 +569,14 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
                   className="spot"
                   style={box(plot.x - W / 2, plot.y - H, W, H)}
                   onClick={(e) => go(agent.name, e)}
-                  aria-label={`${shown(agent.name)}. ${wordsFor(state, agent.name)}.${bubble ? ` ${bubble.text}.` : ''}`}
+                  aria-label={`${shown(agent.name)}. ${words}.${bubble ? ` ${bubble.text}.` : ''}`}
                 >
                   {home && bubble && <Think bubble={bubble} />}
                   <span className="plaque">{shown(agent.name)}</span>
                 </button>
               );
             })}
-            {plan.map(({ agent, state, bubble }) => (
+            {plan.map(({ agent, state, bubble, words }) => (
               <button
                 type="button"
                 key={agent.name}
@@ -457,8 +587,8 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
                 style={{ width: 16 * view.s, height: 20 * view.s }}
                 onClick={(e) => go(agent.name, e)}
               >
-                {state !== 'working' && state !== 'asleep' && bubble && <Think bubble={bubble} />}
-                <span className="npc-tag">{shown(agent.name)}: {wordsFor(state, agent.name)}</span>
+                {!AT_HOME.has(state) && bubble && <Think bubble={bubble} />}
+                <span className="npc-tag">{shown(agent.name)}: {words}</span>
               </button>
             ))}
             {agents && (
@@ -468,7 +598,7 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
               </div>
             )}
             {house && (
-              <button type="button" className="spot spot-dock" style={phase === 'night' ? box(dock.boats[0].x - 17, dock.boats[0].y - 28, 34, 28) : box(dock.news.x - 11, dock.news.y - 22, 22, 24)} onClick={(e) => go(NEWS, e)} aria-label={`News from the dock${phase === 'night' ? ", on the crier's boat" : ''}.${crierBubble ? ` ${crierBubble.text}.` : ''}`}>
+              <button type="button" className="spot spot-news" style={phase === 'night' ? box(dock.boats[0].x - 17, dock.boats[0].y - 28, 34, 28) : box(dock.news.x - 11, dock.news.y - 22, 22, 24)} onClick={(e) => go(NEWS, e)} aria-label={`News from the dock${phase === 'night' ? ", on the crier's boat" : ''}.${crierBubble ? ` ${crierBubble.text}.` : ''}`}>
                 {crierBubble && <Think bubble={crierBubble} />}
                 <span className="plaque">News</span>
               </button>

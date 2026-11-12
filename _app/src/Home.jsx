@@ -2,9 +2,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { buildRoom, drawRoom, lookOf, portraitUrl } from './art.js';
-import { CLAUDE_LEVELS, defaultLevelOf, shown as display } from './layout.js'; // Home has its own `shown`, the typewriter's progress
+import { CLAUDE_LEVELS, GIFTS, defaultLevelOf, shown as display } from './layout.js'; // Home has its own `shown`, the typewriter's progress
 import { isEngineer, isGod, isJobs, moodOf, routineOf } from './news.js';
 import Office, { JOB_ROOMS } from './Office.jsx';
+import { Icon } from './Island.jsx';
 
 const MARK = { done: 'Done', missed: 'Missed', partial: 'Partial', open: 'Open' };
 const ROOM_MIN_WIDTH = 250; // art pixels, enough for all the furniture around the resident
@@ -244,7 +245,7 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
   );
 }
 
-function Room({ look, working, phase, asleep, sleeping, away, room: place }) {
+function Room({ look, working, phase, asleep, sleeping, away, gifts, room: place }) {
   const hostRef = useRef(null);
   const canvasRef = useRef(null);
   const [size, setSize] = useState(null);
@@ -275,7 +276,8 @@ function Room({ look, working, phase, asleep, sleeping, away, room: place }) {
     const s = dev / size.dpr;
     return { s, LW: Math.ceil(size.vw / s), LH: Math.ceil(size.vh / s), focus: Math.ceil(size.free / s), left: Math.ceil(size.left / s) };
   }, [size]);
-  const room = useMemo(() => (view ? buildRoom(view, look, phase, place, away) : null), [view, look, phase, place, away]);
+  const giftKey = (gifts ?? []).join('|'); // the list is new on every poll, its contents rarely are
+  const room = useMemo(() => (view ? buildRoom(view, look, phase, place, away, giftKey ? giftKey.split('|') : []) : null), [view, look, phase, place, away, giftKey]);
 
   useEffect(() => {
     if (!room) return undefined;
@@ -294,16 +296,28 @@ function Room({ look, working, phase, asleep, sleeping, away, room: place }) {
   );
 }
 
-export default function Home({ asleep, agent, messages, chats, chatId, loaded, onOpenChat, onNewChat, onRenameChat, onDeleteChat, live, phase, level, onLevel, onSend, onStop, onLeave, room, jobs, onRoom, onJobs }) {
+const SIMPLE_KEY = 'agent-house-simple-chat';
+
+export default function Home({ asleep, agent, messages, chats, chatId, loaded, onOpenChat, onNewChat, onRenameChat, onDeleteChat, live, call, onAnswer, onGift, phase, level, onLevel, onSend, onStop, onLeave, room, jobs, onRoom, onJobs }) {
   const slot = `${agent.name}|${room ?? ''}`; // the interview room keeps its own draft
   const [draft, setDraft] = useState(() => drafts.get(slot)?.draft ?? '');
   const [files, setFiles] = useState(() => drafts.get(slot)?.files ?? []);
   const [attachError, setAttachError] = useState('');
   const [levelError, setLevelError] = useState('');
+  const [thanks, setThanks] = useState(false);
+  const [giftError, setGiftError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
-  const [wokenUp] = useState(() => routineOf(agent.name) === 'asleep' && !isGod(agent.name));
+  const [wokenUp] = useState(() => ['asleep', 'nap'].includes(routineOf(agent.name)) && !isGod(agent.name));
   const [wide] = useState(() => matchMedia('(min-width: 900px)').matches);
+  // Engineer can drop the room for a plain chat, like claude.ai. The choice is remembered.
+  const [simple, setSimple] = useState(() => {
+    try { return isEngineer(agent.name) && localStorage.getItem(SIMPLE_KEY) === '1'; } catch { return false; }
+  });
+  const toggleSimple = () => {
+    setSimple(!simple);
+    try { localStorage.setItem(SIMPLE_KEY, simple ? '0' : '1'); } catch { /* it just isn't remembered */ }
+  };
   const threadRef = useRef(null);
   const stick = useRef(true);
   const look = lookOf(agent.name);
@@ -319,10 +333,26 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
   const wakes = asleep && new Date(asleep).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
   const status = live.busy ? `${live.activity ?? 'Thinking'}…` : sleeping ? `Asleep until ${wakes}` : sinceVisit(agent.lastVisit);
   const back = room ? (e) => onRoom(null, e) : onLeave;
-  const facts = [JOB_ROOMS[room] ?? null, agent.streak ? `${agent.streak}-day streak` : null, agent.misses ? `${agent.misses} missed this week` : null, agent.waiting ? `${agent.waiting} ${agent.waiting === 1 ? 'note' : 'notes'} waiting` : null].filter(Boolean);
+  const facts = [
+    agent.streak ? ['star', `${agent.streak}-day streak`] : null,
+    agent.misses ? ['cloud', `${agent.misses} missed this week`] : null,
+    agent.waiting ? ['letter', `${agent.waiting} ${agent.waiting === 1 ? 'note' : 'notes'} waiting`] : null,
+  ].filter(Boolean);
   const uploading = files.some((f) => f.pending);
   const canSend = !live.busy && !sleeping && !uploading && Boolean(draft.trim() || files.length);
   const levelLabel = CLAUDE_LEVELS.find((l) => l.id === (level ?? defaultLevelOf(agent.name)))?.label;
+
+  useEffect(() => {
+    if (!thanks) return undefined;
+    const id = setTimeout(() => setThanks(false), 4000);
+    return () => clearTimeout(id);
+  }, [thanks]);
+  const pickGift = async (id) => {
+    setGiftError('');
+    const problem = await onGift(id);
+    if (problem) setGiftError(problem);
+    else setThanks(true);
+  };
 
   useEffect(() => { drafts.set(slot, { draft, files: files.filter((f) => !f.pending) }); }, [slot, draft, files]);
 
@@ -391,15 +421,24 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
   });
 
   return (
-    <div className="home">
-      <Room look={look} working={Boolean(live.busy)} away={isJobs(agent.name) && Boolean(jobs?.busy)} phase={phase} asleep={wokenUp} sleeping={sleeping} room={room} />
+    <div className={`home${simple ? ' is-simple' : ''}`}>
+      {!simple && <Room look={look} working={Boolean(live.busy)} away={isJobs(agent.name) && Boolean(jobs?.busy)} gifts={agent.gifts} phase={phase} asleep={wokenUp} sleeping={sleeping} room={room} />}
 
       <div className="home-side">
         <button type="button" className="btn" onClick={onLeave}>Back to the island</button>
         {room && <button type="button" className="btn" onClick={(e) => onRoom(null, e)}>Go home</button>}
+        {isEngineer(agent.name) && <button type="button" className="btn" onClick={toggleSimple}>{simple ? 'Island view' : 'Simple view'}</button>}
+        {simple && (
+          <label className="level-pick">
+            Claude
+            <LevelSelect agent={agent.name} value={level} onChange={async (model) => setLevelError((await onLevel(model)) ?? '')} />
+          </label>
+        )}
         {isJobs(agent.name) && <Office room={room} jobs={jobs} onAct={onJobs} onRoom={onRoom} />}
       </div>
 
+      {!simple && (
+      <div className="home-corner">{/* today's list sits on top of the name card, however tall the card gets */}
       {agent.today?.items.length > 0 && (
         <details className="pin" open={wide}>
           <summary>Today <span>{doneCount} of {agent.today.items.length}</span></summary>
@@ -417,20 +456,38 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
 
       <aside className="who frame">
         <img src={portraitUrl(look, moodOf(agent, live), typing && Math.floor(shown / 24) % 2 === 1)} alt="" width={96} height={120} />
-        <div>
-          <h2>{display(agent.name)}</h2>
-          <p role="status">{status}</p>
-          {facts.map((f) => <small key={f}>{f}</small>)}
-          {isEngineer(agent.name)
-            ? (
-              <label className="level-pick">
-                Claude
-                <LevelSelect agent={agent.name} value={level} onChange={async (model) => setLevelError((await onLevel(model)) ?? '')} />
-              </label>
-            )
-            : <small>Claude {levelLabel}</small>}
+        <div className="who-body">
+          <div>
+            <h2>{display(agent.name)}</h2>
+            {JOB_ROOMS[room] && <span className="who-place">{JOB_ROOMS[room]}</span>}
+            <p role="status">{status}</p>
+          </div>
+          {agent.level > 0 && (
+            <div className="who-level" role="img" aria-label={`Level ${agent.level}: ${agent.points} of ${agent.nextAt} points`}>
+              <b>Level {agent.level}</b>
+              <span className="bar"><i style={{ width: `${Math.min(100, (agent.points / agent.nextAt) * 100)}%` }} /></span>
+              <small>{agent.points}/{agent.nextAt}</small>
+            </div>
+          )}
+          {facts.length > 0 && (
+            <ul className="who-facts">
+              {facts.map(([icon, text]) => <li key={text}><Icon name={icon} />{text}</li>)}
+            </ul>
+          )}
+          <div className="who-foot">
+            {isEngineer(agent.name)
+              ? (
+                <label className="level-pick">
+                  Claude
+                  <LevelSelect agent={agent.name} value={level} onChange={async (model) => setLevelError((await onLevel(model)) ?? '')} />
+                </label>
+              )
+              : `Claude ${levelLabel}`}
+          </div>
         </div>
       </aside>
+      </div>
+      )}
 
       <main
         className={`chat frame${dragging ? ' is-dragging' : ''}`}
@@ -465,10 +522,30 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
           {errorHere && (
             <div className="slip" role="alert">
               <p>{live.error}</p>
-              <button type="button" onClick={() => onSend(live.lastText, live.lastFiles)}>Retry</button>
+              <button type="button" onClick={() => (live.lastCall ? onAnswer(live.lastCall, live.chat) : onSend(live.lastText, live.lastFiles))}>Retry</button>
             </div>
           )}
         </div>
+
+        {agent.unwrapped > 0 && !live.busy && (
+          <div className="level-up" role="status">
+            <Icon name="star" />
+            <p><b>{display(agent.name)} reached level {agent.level}.</b> Pick a gift for its home:</p>
+            <div className="gift-picks">
+              {agent.offer.map((id) => <button type="button" className="btn" key={id} onClick={() => pickGift(id)}>{GIFTS.find((g) => g.id === id)?.label ?? id}</button>)}
+            </div>
+            {giftError && <p role="alert">{giftError}</p>}
+          </div>
+        )}
+        {thanks && <div className="level-up" role="status"><Icon name="star" /><p>It loves it! It's already in its home.</p></div>}
+
+        {call && !live.busy && !sleeping && (
+          <div className="call" role="status" data-status={call.status}>
+            <Icon name="phone" />
+            <p><b>{call.status === 'missed' ? `Missed call from ${display(agent.name)}` : `${display(agent.name)} is calling you`}</b> {call.why}</p>
+            <button type="button" className="btn" onClick={() => onAnswer(call)}>{call.status === 'missed' ? 'Call back' : 'Answer'}</button>
+          </div>
+        )}
 
         {!atBottom && <button type="button" className="btn to-bottom" aria-label="Go to the latest message" onClick={() => { stick.current = true; setAtBottom(true); toBottom(); }}><Glyph name="down" /></button>}
 

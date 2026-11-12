@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { basename } from 'node:path';
-import { CLAUDE_LEVELS, JOB_STATUSES, clockOf, defaultLevelOf, minuteOf, shown } from './src/layout.js';
+import { CLAUDE_LEVELS, GIFTS, JOB_STATUSES, clockOf, defaultLevelOf, minuteOf, shown } from './src/layout.js';
 import NEWS_CONFIG from './news-sources.json' with { type: 'json' };
 
 const DAY_ROLLOVER_HOURS = 4; // matches DAY_ROLLOVER in Mayor/CLAUDE.md
@@ -150,7 +150,7 @@ export function parseJobs(text, seen = []) {
 export const addJobs = (board, found) => ({ ...board, items: [...found, ...board.items].slice(0, MAX_JOBS), error: '' });
 
 /** The owner's changes to the board. Returns an error message, or null. Mutates `board`. */
-export function changeJob(board, { action, url, status }) {
+export function changeJob(board, { action, url, status }, now = Date.now()) {
   const job = board.items.find((j) => j.url === url);
   if (!job) return 'That opening is no longer on the list.';
   if (action === 'remove') {
@@ -160,6 +160,7 @@ export function changeJob(board, { action, url, status }) {
   }
   if (action !== 'status' || !JOB_STATUSES.some(([value]) => value === status)) return 'That change wasn\'t understood.';
   job.status = status;
+  job.changed = now; // an interview or an offer is celebrated for a few days
   return null;
 }
 
@@ -183,6 +184,10 @@ const MAX_OPS_PER_TURN = 20;
 const BRIEF_DAYS = 14;
 const MAX_NOTE = 4000; // long enough to pass on a whole syllabus summary
 const MAX_WAITING = 30;
+const MAX_EXCHANGES = 40;
+const MAX_CALL = 300;
+const CALL_RING_MS = 30 * 60e3; // an urgent call rings this long, then it's a missed call
+const CALL_KEPT_MS = 3 * 864e5; // a missed call waits this long to be returned, then it's forgotten
 
 export const isGod = (name) => /^god$/i.test(name);
 export const isMayor = (name) => /^mayor$/i.test(name);
@@ -228,6 +233,27 @@ export function weekOf(ts = Date.now()) {
   return shiftDay(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7));
 }
 
+// What a resident has really done: a point for each day the owner talked to it, three for each weekly goal of its that got done.
+const LEVEL_AT = [0, 3, 7, 12, 18, 25, 33, 42, 52, 63];
+const levelAt = (n) => LEVEL_AT[n - 1] ?? LEVEL_AT.at(-1) + (n - LEVEL_AT.length) * 12;
+
+/** Three gifts it doesn't have yet, in an order that depends on the resident and its level, so every house ends up different. */
+function giftOffer(name, owned, level) {
+  const left = GIFTS.filter((g) => !owned.some((o) => o.id === g.id));
+  const start = [...name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + level * 3;
+  return Array.from({ length: Math.min(3, left.length) }, (_, i) => left[(start + i) % left.length].id);
+}
+
+/** Where a resident stands: points, level, and the gifts it has earned but the owner hasn't given yet. `data` is its file. */
+export function growthOf(data, goals, name) {
+  const points = (data.days?.length ?? 0) + 3 * goals.filter((g) => g.by === name && g.done).length;
+  let level = 1;
+  while (points >= levelAt(level + 1)) level++;
+  const owned = data.gifts ?? [];
+  const unwrapped = Math.max(0, Math.min(level - 1, GIFTS.length) - owned.length);
+  return { points, level, nextAt: levelAt(level + 1), gifts: owned.map((g) => g.id), unwrapped, offer: unwrapped ? giftOffer(name, owned, level) : [] };
+}
+
 /** True when the most recent weekly slot (default Sunday 18:00, the mayor's WEEKLY_DAY) is newer than `last`. */
 export function meetingDue(last, now = Date.now(), weekday = 0, hour = 18) {
   const slot = new Date(now);
@@ -244,8 +270,13 @@ const validTime = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 const clashes = (a, b) => a.day === b.day && a.time && b.time && !a.bumped && !b.bumped
   && minuteOf(a.time) < minuteOf(b.time) + b.minutes && minuteOf(b.time) < minuteOf(a.time) + a.minutes;
 
+/** Remembers that one resident reached out to another, so the island can show it. Notes are deleted once read, this stays. */
+export function logExchange(house, from, to, kind, text, now = Date.now()) {
+  house.exchanges = [...(house.exchanges ?? []), { id: house.nextId++, from, to, kind, gist: tidy(text, 80), at: now }].slice(-MAX_EXCHANGES);
+}
+
 /** Applies one request to the house, enforcing access levels. Mutates `house`, returns { ok, message }. */
-export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTalk = false } = {}) {
+export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTalk = false, withOwner = false } = {}) {
   const rank = RANK[tierOf(house, actor)];
   const rankOf = (name) => RANK[tierOf(house, name)];
   const no = (why) => ({ ok: false, message: `Refused: ${why}` });
@@ -273,7 +304,7 @@ export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTa
   switch (op?.do) {
     case 'add': {
       if (rank < RANK.member) return no('read-only residents can\'t book the calendar.');
-      const event = { id: house.nextId, title: tidy(op.title, 120), day: op.day, time: op.time || '', minutes: op.minutes === undefined ? 60 : Number(op.minutes), by: actor };
+      const event = { id: house.nextId, title: tidy(op.title, 120), day: op.day, time: op.time || '', minutes: op.minutes === undefined ? 60 : Number(op.minutes), by: actor, ...(op.owner === true && actor !== OWNER ? { owner: true } : {}) };
       const bad = badBlock(event);
       if (bad) return no(bad);
       const { blocker, others } = slotFor(event);
@@ -294,7 +325,9 @@ export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTa
         time: op.time === undefined ? event.time : op.time || '',
         minutes: op.minutes === undefined ? event.minutes : Number(op.minutes),
         bumped: undefined, // a block that has been given a new place is no longer bumped
+        owner: actor === event.by && actor !== OWNER && op.owner !== undefined ? op.owner === true : event.owner, // only its holder decides whether it rings the owner
       };
+      if (next.day !== event.day || next.time !== event.time) next.answered = undefined; // a new slot rings again
       const bad = badBlock(next);
       if (bad) return no(bad);
       const { blocker, others } = slotFor(next);
@@ -342,6 +375,7 @@ export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTa
       const box = (house.inbox[op.agent] ??= []);
       if (box.length >= MAX_WAITING) return no(`${display(op.agent)} already has ${MAX_WAITING} notes waiting.`);
       box.push({ id: house.nextId++, from: actor, text, at: now });
+      logExchange(house, actor, op.agent, 'note', text, now);
       return yes(`Told ${display(op.agent)}: ${text.length > 120 ? `${text.slice(0, 120)}…` : text}`);
     }
     case 'talk': {
@@ -352,6 +386,16 @@ export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTa
       const text = tidy(op.text, MAX_NOTE);
       if (!text) return no('a talk needs something to say.');
       return { ...yes(`Going to talk to ${display(op.agent)}.`), talk: { agent: op.agent, text } };
+    }
+    case 'call': {
+      if (rank < RANK.member) return no('read-only residents can\'t call the owner.');
+      if (withOwner) return no('you are already talking with the owner.');
+      const why = tidy(op.why, MAX_CALL);
+      if (!why) return no('a call has to say why.');
+      house.calls = (house.calls ?? []).filter((c) => now - c.at < CALL_RING_MS + CALL_KEPT_MS);
+      if (house.calls.some((c) => c.agent === actor)) return no('you already have an unanswered call to the owner.');
+      house.calls.push({ id: house.nextId++, agent: actor, why, at: now });
+      return yes(`Called the owner: ${why}`);
     }
     case 'tier': {
       if (rank < RANK.god) return no('only God or the owner can change access levels.');
@@ -436,6 +480,26 @@ export function settleGoogleSync(house, done) {
   }
 }
 
+/**
+ * Who is calling the owner right now, at most one call per resident. A call comes from a block the resident booked
+ * "with the owner" (it rings when the block starts) or from an urgent `call`. Unanswered, it turns into a missed call.
+ */
+export function callsOf(house, now = Date.now()) {
+  const found = [];
+  const add = (call, end) => {
+    if (now - end <= CALL_KEPT_MS) found.push({ ...call, status: now < end ? 'ringing' : 'missed' });
+  };
+  for (const e of house.events) {
+    if (!e.owner || e.by === OWNER || e.bumped || e.answered) continue;
+    const start = new Date(`${e.day}T${e.time || '09:00'}:00`).getTime(); // a block without a time rings at 9
+    if (start <= now) add({ id: e.id, agent: e.by, kind: 'block', why: e.title, day: e.day, time: e.time, at: start }, start + e.minutes * 60e3);
+  }
+  for (const c of house.calls ?? []) add({ id: c.id, agent: c.agent, kind: 'urgent', why: c.why, at: c.at }, c.at + CALL_RING_MS);
+  const newest = new Map();
+  for (const call of found.sort((a, b) => (b.status === 'ringing') - (a.status === 'ringing') || b.at - a.at)) if (!newest.has(call.agent)) newest.set(call.agent, call);
+  return [...newest.values()];
+}
+
 /** Pulls <house> blocks of one-JSON-object-per-line out of an agent's reply. */
 export function parseOps(text) {
   const ops = [];
@@ -462,8 +526,15 @@ const TALK_HELP = [
   '</house>',
 ].join('\n');
 
-/** What a resident is told about the common area at the top of each turn. */
-export function houseBrief(house, name, agents, notices = [], now = Date.now(), { canTalk = false } = {}) {
+const CALL_HELP = [
+  'To call the owner, add this block at the very end of your reply. It rings on their island and they pick up when they can. Only for something truly urgent that can\'t wait for their next visit or for a block with them. A routine question or a finished task is not a reason to call.',
+  '<house>',
+  '{"do":"call","why":"what you need from them, in one sentence"}',
+  '</house>',
+].join('\n');
+
+/** What a resident is told about the common area at the top of each turn. `withOwner` means the owner is in this very conversation. */
+export function houseBrief(house, name, agents, notices = [], now = Date.now(), { canTalk = false, withOwner = false } = {}) {
   const today = localDay(now);
   const last = shiftDay(today, BRIEF_DAYS);
   const tier = tierOf(house, name);
@@ -483,6 +554,7 @@ export function houseBrief(house, name, agents, notices = [], now = Date.now(), 
       : [`{"do":"tell","agent":"${isMayor(name) ? 'name of the resident' : 'Mayor'}","text":"everything they need to know"}`]),
     '</house>',
     'In "move", leave out any field that stays the same. Only add the block when you actually mean to change something.',
+    'Add "owner":true to an "add" only when you need the owner to work with you during that block: the house rings them when it starts, and when they pick up you speak first. Never for work you can do alone.',
   ].join('\n');
   const waiting = (house.inbox?.[name] ?? []).map((m) => `#${m.id} from ${display(m.from)}: ${JSON.stringify(m.text)}`).join('\n');
   const notes = isMayor(name)
@@ -498,6 +570,7 @@ export function houseBrief(house, name, agents, notices = [], now = Date.now(), 
     ...(notices.length ? [`What happened with your last house actions:\n${notices.join('\n')}`] : []),
     write,
     ...(canTalk ? [TALK_HELP] : []),
+    ...(!withOwner && tier !== 'read' ? [CALL_HELP] : []),
   ].join('\n\n');
 }
 
