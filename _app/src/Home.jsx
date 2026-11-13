@@ -160,21 +160,12 @@ function Notes({ notes }) {
   );
 }
 
-/** The bar above a conversation: which one this is, the others, and a fresh one. */
-function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
-  const [open, setOpen] = useState(false);
+/** Conversations to open, rename or delete. Deleting takes a second click on the same button. */
+function ChatList({ chats, current, busy, onOpen, onRename, onDelete }) {
   const [editing, setEditing] = useState(null);
-  const [arming, setArming] = useState(null); // deleting takes a second click on the same button
+  const [arming, setArming] = useState(null);
   const [error, setError] = useState('');
-  const rootRef = useRef(null);
   const cancelled = useRef(false);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = (e) => { if (!rootRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
 
   const finishRename = async (chat, value) => {
     const title = value.trim();
@@ -189,6 +180,63 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
   };
 
   return (
+    <>
+      <ul className="chat-list">
+        {chats.map((c) => (
+          <li key={c.id} className={c.id === current ? 'is-current' : undefined}>
+            {editing === c.id
+              ? (
+                <input
+                  autoFocus
+                  defaultValue={c.title}
+                  maxLength={80}
+                  aria-label={`New title for ${c.title}`}
+                  onBlur={(e) => finishRename(c, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.target.blur();
+                    if (e.key === 'Escape') { e.stopPropagation(); cancelled.current = true; e.target.blur(); }
+                  }}
+                />
+              )
+              : (
+                <button type="button" className="chat-pick" aria-current={c.id === current ? 'true' : undefined} onClick={() => onOpen(c.id)}>
+                  <span>{c.title}</span>
+                  <time>{new Date(c.at).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</time>
+                </button>
+              )}
+            <button type="button" className="ghost" aria-label={`Rename ${c.title}`} title="Rename" onClick={() => setEditing(c.id)}><Glyph name="edit" /></button>
+            <button
+              type="button"
+              className={`ghost chat-delete${arming === c.id ? ' is-armed' : ''}`}
+              disabled={busy}
+              aria-label={arming === c.id ? `Confirm delete ${c.title}` : `Delete ${c.title}`}
+              title={busy ? 'Wait until it finishes' : 'Delete'}
+              onClick={() => (arming === c.id ? remove(c.id) : setArming(c.id))}
+              onBlur={() => setArming(null)}
+            >
+              {arming === c.id ? 'Delete?' : <Glyph name="x" />}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="box-error" role="alert">{error}</p>}
+    </>
+  );
+}
+
+/** The bar above a conversation: which one this is, the others, and a fresh one. */
+function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const outside = (e) => { if (!rootRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [open]);
+
+  return (
     <div className="chats" ref={rootRef} onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); } }}>
       <div className="chats-bar">
         <button type="button" className="chats-toggle" aria-expanded={open} aria-label="Your conversations" onClick={() => setOpen(!open)}>
@@ -200,48 +248,51 @@ function ChatBar({ chats, current, busy, onOpen, onNew, onRename, onDelete }) {
       {open && (
         <div className="chats-pop">
           {chats.length === 0 && <p className="quiet">No conversations yet. Say something to start one here.</p>}
-          <ul>
-            {chats.map((c) => (
-              <li key={c.id} className={c.id === current ? 'is-current' : undefined}>
-                {editing === c.id
-                  ? (
-                    <input
-                      autoFocus
-                      defaultValue={c.title}
-                      maxLength={80}
-                      aria-label={`New title for ${c.title}`}
-                      onBlur={(e) => finishRename(c, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') e.target.blur();
-                        if (e.key === 'Escape') { e.stopPropagation(); cancelled.current = true; e.target.blur(); }
-                      }}
-                    />
-                  )
-                  : (
-                    <button type="button" className="chat-pick" aria-current={c.id === current ? 'true' : undefined} onClick={() => { onOpen(c.id); setOpen(false); }}>
-                      <span>{c.title}</span>
-                      <time>{new Date(c.at).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</time>
-                    </button>
-                  )}
-                <button type="button" className="ghost" aria-label={`Rename ${c.title}`} title="Rename" onClick={() => setEditing(c.id)}><Glyph name="edit" /></button>
-                <button
-                  type="button"
-                  className={`ghost chat-delete${arming === c.id ? ' is-armed' : ''}`}
-                  disabled={busy}
-                  aria-label={arming === c.id ? `Confirm delete ${c.title}` : `Delete ${c.title}`}
-                  title={busy ? 'Wait until it finishes' : 'Delete'}
-                  onClick={() => (arming === c.id ? remove(c.id) : setArming(c.id))}
-                  onBlur={() => setArming(null)}
-                >
-                  {arming === c.id ? 'Delete?' : <Glyph name="x" />}
-                </button>
-              </li>
-            ))}
-          </ul>
-          {error && <p className="box-error" role="alert">{error}</p>}
+          <ChatList chats={chats} current={current} busy={busy} onOpen={(id) => { onOpen(id); setOpen(false); }} onRename={onRename} onDelete={onDelete} />
         </div>
       )}
     </div>
+  );
+}
+
+/** A project's page, as on claude.ai: its name, the instructions all its conversations get, and those conversations. */
+function ProjectPage({ project, chats, busy, onOpen, onRename, onDelete, onNew, onSave, onRemove }) {
+  const [name, setName] = useState(project.name);
+  const [notes, setNotes] = useState(project.instructions);
+  const [error, setError] = useState('');
+  const [arming, setArming] = useState(false);
+  const changed = name.trim() !== project.name || notes !== project.instructions;
+  const save = async (e) => {
+    e.preventDefault();
+    setError((await onSave({ name: name.trim(), instructions: notes })).error ?? '');
+  };
+  const remove = async () => {
+    setArming(false);
+    setError((await onRemove()).error ?? '');
+  };
+
+  return (
+    <main className="chat project-page" aria-label={`Project ${project.name}`}>
+      <form className="project-form" onSubmit={save}>
+        <label>Project name<input value={name} maxLength={80} required onChange={(e) => setName(e.target.value)} /></label>
+        <label>
+          Project instructions
+          <textarea value={notes} maxLength={8000} rows={6} placeholder="What it should know and how it should work in this project" onChange={(e) => setNotes(e.target.value)} />
+        </label>
+        <p className="quiet">They go with every message in this project's conversations.</p>
+        <div className="project-actions">
+          <button type="submit" className="plain" disabled={!changed || !name.trim()}>Save</button>
+          <button type="button" className={`plain${arming ? ' is-armed' : ''}`} onClick={() => (arming ? remove() : setArming(true))} onBlur={() => setArming(false)}>
+            {arming ? 'Delete? Its conversations stay' : 'Delete project'}
+          </button>
+        </div>
+        {error && <p className="box-error" role="alert">{error}</p>}
+      </form>
+      <button type="button" className="side-new" onClick={onNew}><Glyph name="plus" />New conversation in this project</button>
+      {chats.length === 0
+        ? <p className="quiet">No conversations in this project yet.</p>
+        : <ChatList chats={chats} current={null} busy={busy} onOpen={onOpen} onRename={onRename} onDelete={onDelete} />}
+    </main>
   );
 }
 
@@ -298,7 +349,7 @@ function Room({ look, working, phase, asleep, sleeping, away, gifts, room: place
 
 const SIMPLE_KEY = 'agent-house-simple-chat';
 
-export default function Home({ asleep, agent, messages, chats, chatId, loaded, onOpenChat, onNewChat, onRenameChat, onDeleteChat, live, call, onAnswer, onGift, phase, level, onLevel, onSend, onStop, onLeave, room, jobs, onRoom, onJobs }) {
+export default function Home({ asleep, agent, messages, chats, chatId, chatProject, loaded, onOpenChat, onNewChat, onRenameChat, onMoveChat, onDeleteChat, onProject, live, call, onAnswer, onGift, phase, level, onLevel, onSend, onStop, onLeave, onIris, room, jobs, onRoom, onJobs }) {
   const slot = `${agent.name}|${room ?? ''}`; // the interview room keeps its own draft
   const [draft, setDraft] = useState(() => drafts.get(slot)?.draft ?? '');
   const [files, setFiles] = useState(() => drafts.get(slot)?.files ?? []);
@@ -314,9 +365,23 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
   const [simple, setSimple] = useState(() => {
     try { return isEngineer(agent.name) && localStorage.getItem(SIMPLE_KEY) === '1'; } catch { return false; }
   });
-  const toggleSimple = () => {
-    setSimple(!simple);
+  const toggleSimple = (e) => {
+    onIris(() => setSimple(!simple), e); // the island's iris, opening from the button
     try { localStorage.setItem(SIMPLE_KEY, simple ? '0' : '1'); } catch { /* it just isn't remembered */ }
+  };
+  // In the plain view a project's page can stand in for the chat, like on claude.ai.
+  const [projectView, setProjectView] = useState(null);
+  const [projectError, setProjectError] = useState('');
+  const [moveError, setMoveError] = useState('');
+  const projects = agent.projects ?? [];
+  const openProject = simple && projects.find((p) => p.id === projectView);
+  const inProject = projects.find((p) => p.id === chatProject);
+  const openChat = (id) => { setProjectView(null); onOpenChat(id); };
+  const newChat = (project) => { setProjectView(null); onNewChat(project); };
+  const newProject = async () => {
+    const made = await onProject(null, 'POST', {});
+    setProjectError(made.error ?? '');
+    if (!made.error) setProjectView(made.id);
   };
   const threadRef = useRef(null);
   const stick = useRef(true);
@@ -331,7 +396,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
   const doneCount = agent.today?.items.filter((i) => i.status === 'done').length ?? 0;
   const sleeping = Boolean(asleep) && !live.busy;
   const wakes = asleep && new Date(asleep).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' });
-  const status = live.busy ? `${live.activity ?? 'Thinking'}…` : sleeping ? `Asleep until ${wakes}` : sinceVisit(agent.lastVisit);
+  const status = live.busy ? `${live.activity ?? 'Thinking'}…` : sleeping ? `Asleep until ${wakes}` : isGod(agent.name) ? '' : sinceVisit(agent.lastVisit);
   const back = room ? (e) => onRoom(null, e) : onLeave;
   const facts = [
     agent.streak ? ['star', `${agent.streak}-day streak`] : null,
@@ -424,18 +489,54 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
     <div className={`home${simple ? ' is-simple' : ''}`}>
       {!simple && <Room look={look} working={Boolean(live.busy)} away={isJobs(agent.name) && Boolean(jobs?.busy)} gifts={agent.gifts} phase={phase} asleep={wokenUp} sleeping={sleeping} room={room} />}
 
-      <div className="home-side">
-        <button type="button" className="btn" onClick={onLeave}>Back to the island</button>
-        {room && <button type="button" className="btn" onClick={(e) => onRoom(null, e)}>Go home</button>}
-        {isEngineer(agent.name) && <button type="button" className="btn" onClick={toggleSimple}>{simple ? 'Island view' : 'Simple view'}</button>}
-        {simple && (
+      {simple ? (
+        <nav className="side" aria-label={`Conversations with ${display(agent.name)}`}>
+          <div className="side-signs">{/* the way back stays in the island's style */}
+            <button type="button" className="btn" onClick={onLeave}>Back to the island</button>
+            <button type="button" className="btn" onClick={toggleSimple}>Island view</button>
+          </div>
+          <button type="button" className="side-new" onClick={() => newChat()}><Glyph name="plus" />New conversation</button>
+          <h2>Projects</h2>
+          <ul className="chat-list">
+            {projects.map((p) => (
+              <li key={p.id} className={p.id === openProject?.id ? 'is-current' : undefined}>
+                <button type="button" className="chat-pick" aria-current={p.id === openProject?.id ? 'page' : undefined} onClick={() => setProjectView(p.id)}><span>{p.name}</span></button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="side-new" onClick={newProject}><Glyph name="plus" />New project</button>
+          {projectError && <p className="box-error" role="alert">{projectError}</p>}
+          <h2>Recents</h2>
+          {chats.length === 0 && <p className="quiet">No conversations yet.</p>}
+          <ChatList chats={chats} current={openProject ? null : chatId} busy={Boolean(live.busy)} onOpen={openChat} onRename={onRenameChat} onDelete={onDeleteChat} />
           <label className="level-pick">
             Claude
             <LevelSelect agent={agent.name} value={level} onChange={async (model) => setLevelError((await onLevel(model)) ?? '')} />
           </label>
-        )}
-        {isJobs(agent.name) && <Office room={room} jobs={jobs} onAct={onJobs} onRoom={onRoom} />}
-      </div>
+        </nav>
+      ) : (
+        <div className="home-side">
+          <button type="button" className="btn" onClick={onLeave}>Back to the island</button>
+          {room && <button type="button" className="btn" onClick={(e) => onRoom(null, e)}>Go home</button>}
+          {isEngineer(agent.name) && <button type="button" className="btn" onClick={toggleSimple}>Simple view</button>}
+          {isJobs(agent.name) && <Office room={room} jobs={jobs} onAct={onJobs} onRoom={onRoom} />}
+        </div>
+      )}
+
+      {openProject && (
+        <ProjectPage
+          key={openProject.id}
+          project={openProject}
+          chats={chats.filter((c) => c.project === openProject.id)}
+          busy={Boolean(live.busy)}
+          onOpen={openChat}
+          onRename={onRenameChat}
+          onDelete={onDeleteChat}
+          onNew={() => newChat(openProject.id)}
+          onSave={(body) => onProject(openProject.id, 'PATCH', body)}
+          onRemove={() => onProject(openProject.id, 'DELETE')}
+        />
+      )}
 
       {!simple && (
       <div className="home-corner">{/* today's list sits on top of the name card, however tall the card gets */}
@@ -491,15 +592,30 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
 
       <main
         className={`chat frame${dragging ? ' is-dragging' : ''}`}
+        hidden={Boolean(openProject)} // kept, not unmounted, so the draft and scroll survive a look at the project
         aria-label={`Conversation with ${display(agent.name)}`}
         style={{ '--wall': look.wall, '--wall-ink': look.ink }}
         onDragOver={(e) => { if (hasFiles(e)) { e.preventDefault(); setDragging(true); } }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); }}
         onDrop={(e) => { if (hasFiles(e)) { e.preventDefault(); setDragging(false); uploadFiles(e.dataTransfer.files); } }}
       >
-        <ChatBar chats={chats} current={chatId} busy={Boolean(live.busy)} onOpen={onOpenChat} onNew={onNewChat} onRename={onRenameChat} onDelete={onDeleteChat} />
+        {simple
+          ? (
+            <header className="chat-head">
+              {inProject && <button type="button" className="crumb" onClick={() => setProjectView(inProject.id)}>{inProject.name}</button>}
+              {inProject && <span aria-hidden="true">/</span>}
+              <h1>{chats.find((c) => c.id === chatId)?.title ?? 'New conversation'}</h1>
+              {projects.length > 0 && chats.some((c) => c.id === chatId) && ( // a chat joins the list with its first message
+                <select className="move" aria-label="This conversation's project" title="Move to another project" value={inProject?.id ?? ''} onChange={async (e) => setMoveError((await onMoveChat(chatId, e.target.value || null)) ?? '')}>
+                  <option value="">No project</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
+            </header>
+          )
+          : <ChatBar chats={chats} current={chatId} busy={Boolean(live.busy)} onOpen={onOpenChat} onNew={onNewChat} onRename={onRenameChat} onDelete={onDeleteChat} />}
 
-        <div className="thread" ref={threadRef} onScroll={onScroll} role="log" aria-live="polite">
+        <div className="thread" key={chatId} ref={threadRef} onScroll={onScroll} role="log" aria-live="polite">
           {loaded && messages.length === 0 && !turnHere && (
             <div className="hello">
               <p><b>{display(agent.name)}</b> is waiting for you.</p>
@@ -583,7 +699,7 @@ export default function Home({ asleep, agent, messages, chats, chatId, loaded, o
               ? <button type="button" className="btn btn-stop send" onClick={onStop}>Stop</button>
               : <button type="submit" className="btn send" disabled={!canSend}>Send</button>}
           </div>
-          {(attachError || levelError) && <p className="box-error" role="alert">{attachError || levelError}</p>}
+          {(attachError || levelError || moveError) && <p className="box-error" role="alert">{attachError || levelError || moveError}</p>}
         </form>
         {dragging && <div className="drop-hint" aria-hidden="true">Drop the files to attach them</div>}
       </main>

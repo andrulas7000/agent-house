@@ -234,10 +234,10 @@ button.spot:hover .plaque, .spot:focus-visible .plaque { color: var(--out); back
 .chats-toggle[aria-expanded='true'] .glyph { transform: rotate(180deg); }
 .chats-toggle span, .chat-pick span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .chats-pop { position: absolute; left: 0; right: 0; top: calc(100% + 5px); z-index: 4; max-height: min(420px, 60vh); overflow-y: auto; padding: 5px; color: var(--ink); background: var(--field); box-shadow: 0 0 0 3px var(--line), 4px 5px 0 2px var(--shadow); }
-.chats-pop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.chats-pop li { display: flex; align-items: center; gap: 2px; }
-.chats-pop li.is-current { background: var(--paper-2); }
-.chats-pop input { flex: 1; min-width: 0; padding: 2px 6px; color: var(--ink); border: 2px solid var(--ink); border-radius: 0; background: var(--field); }
+.chat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.chat-list li { display: flex; align-items: center; gap: 2px; }
+.chat-list li.is-current { background: var(--paper-2); }
+.chat-list input { flex: 1; min-width: 0; padding: 2px 6px; color: var(--ink); border: 2px solid var(--ink); border-radius: 0; background: var(--field); }
 .chat-pick { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 3px 6px; border: 0; background: transparent; text-align: left; }
 .chat-pick time { flex: none; color: var(--ink-soft); font-size: 15px; }
 .chat-delete.is-armed, .chat-delete.is-armed:hover { width: auto; padding: 0 7px; color: #fff; background: var(--danger); font-size: 16px; }
@@ -465,37 +465,85 @@ button.spot:hover .plaque, .spot:focus-visible .plaque { color: var(--out); back
   .cal-legend { display: none; }
   .cal-views { margin-left: auto; }
 }
-/* Engineer's plain view: a chat like claude.ai, centred, with no room around it. */
+/* Engineer's plain view: chats and projects like claude.ai, with the island's signs kept for the way back. Always dark. */
 .home.is-simple {
   --font: ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
-  --paper: #faf9f5; --paper-2: #f0eee6; --ink: #2b2a27; --ink-soft: #6b685f; --line: #dcd8cc;
-  --field: #fff; --field-line: #d3cfc2; --placeholder: #8c887d; --me: #efece3; --me-ink: #2b2a27; --shadow: rgba(0, 0, 0, .12);
-  background: var(--paper); color: var(--ink); font: 16px/1.5 var(--font);
-}
-.app[data-phase='night'] .home.is-simple {
   --paper: #262624; --paper-2: #30302e; --ink: #ecebe6; --ink-soft: #a9a69c; --line: #3d3c39;
-  --field: #30302e; --field-line: #4a4945; --placeholder: #8c887d; --me: #3a3936; --me-ink: #ecebe6;
+  --field: #30302e; --field-line: #4a4945; --placeholder: #8c887d; --me: #3a3936; --me-ink: #ecebe6; --shadow: rgba(0, 0, 0, .35);
+  --bar: 54px; /* the message box, and the buttons beside it */
+  display: grid; grid-template-columns: 280px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  background: var(--paper); color: var(--ink); font: 18px/1.5 var(--font); color-scheme: dark;
 }
-.is-simple .home-side { top: 0; left: 0; right: 0; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 14px; background: var(--paper); border-bottom: 1px solid var(--line); }
-.is-simple .btn { padding: 5px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper-2); font: 500 14px/1.2 var(--font); text-shadow: none; }
-.is-simple .level-pick { margin: 0 0 0 auto; font-size: 14px; }
+.is-simple .box-error { color: #ff9a8f; }
+
+.side { grid-column: 1; grid-row: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 12px 10px; background: #1f1e1d; border-right: 1px solid var(--line); }
+.side-signs { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 10px; --font: 'Island', ui-rounded, system-ui, sans-serif; }
+.side h2 { margin: 16px 10px 4px; color: var(--ink-soft); font: 500 13px/1.2 var(--font); }
+.side .quiet { padding: 0 10px; font-size: 14px; }
+.side-new { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 8px; color: var(--ink); background: transparent; font: 500 16px/1.2 var(--font); text-align: left; }
+.side-new:hover { background: var(--paper-2); }
+.side .level-pick { margin: auto 0 0; padding: 14px 10px 2px; font-size: 14px; }
 .is-simple .level-pick select { border-width: 1px; border-radius: 8px; font-size: 14px; }
-.is-simple .chat { position: absolute; top: 52px; bottom: 0; left: max(12px, calc(50% - 380px)); right: auto; width: min(760px, calc(100vw - 24px)); margin: 0; padding: 8px 0 12px; border: 0; border-image: none; }
-.is-simple .chats-bar { border-bottom-width: 1px; }
-.is-simple .bubble { margin: 0; padding: 8px 14px; border-radius: 16px; box-shadow: none; font-size: 16px; line-height: 1.5; }
-.is-simple .prose { font-size: 16px; line-height: 1.65; }
+
+.is-simple .chat-list li { border-radius: 8px; }
+.is-simple .chat-list li.is-current { background: var(--paper-2); }
+.is-simple .chat-pick { padding: 7px 10px; border-radius: 8px; color: var(--ink); font-size: 15px; }
+.is-simple .chat-pick:hover { background: var(--paper-2); }
+.is-simple .chat-pick time { font-size: 13px; }
+.is-simple .chat-list input { padding: 6px 10px; border-width: 1px; border-radius: 8px; font-size: 15px; }
+.is-simple .ghost { border-radius: 6px; }
+.is-simple .ghost:hover { color: var(--ink); background: var(--field-line); }
+.is-simple .chat-delete.is-armed { font-size: 13px; }
+
+.is-simple .chat { position: relative; grid-column: 2; grid-row: 1; justify-self: center; inset: auto; width: min(820px, 100% - 32px); min-height: 0; margin: 0; padding: 12px 0 16px; border: 0; border-image: none; }
+.is-simple .chat[hidden] { display: none; }
+.chat-head { flex: none; display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 2px 4px 10px; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+.chat-head h1 { min-width: 0; overflow: hidden; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; font: 500 17px/1.3 var(--font); }
+.crumb { flex: none; max-width: 40%; overflow: hidden; padding: 0; border: 0; color: var(--ink-soft); background: none; white-space: nowrap; text-overflow: ellipsis; font: 16px/1.3 var(--font); }
+.crumb:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.move { flex: none; max-width: 200px; margin-left: auto; padding: 3px 8px; border: 1px solid var(--field-line); border-radius: 8px; color: var(--ink); background: var(--field); font: 14px/1.3 var(--font); }
+/* Opening another chat, or going between a chat and a project, brings the new one in. */
+@keyframes chat-in { from { opacity: 0; transform: translateY(8px); } }
+.is-simple .thread, .project-page { animation: chat-in .24s cubic-bezier(.2, .8, .2, 1); }
+
+.is-simple .chat .btn { padding: 5px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper-2); font: 500 15px/1.2 var(--font); text-shadow: none; }
+.is-simple .bubble { margin: 0; padding: 10px 16px; border-radius: 18px; box-shadow: none; font-size: 18px; line-height: 1.5; }
+.is-simple .prose { font-size: 18px; line-height: 1.65; }
 .is-simple .prose strong { font-weight: 600; text-shadow: none; }
 .is-simple .prose h1, .is-simple .prose h2, .is-simple .prose h3, .is-simple .prose h4 { font-weight: 600; }
-.is-simple .prose h1 { font-size: 24px; }
-.is-simple .prose h2 { font-size: 20px; }
-.is-simple .prose h3, .is-simple .prose h4 { font-size: 17px; }
-.is-simple .prose th, .is-simple .prose td { border-width: 1px; font-size: 15px; }
-.is-simple .prose pre { border-radius: 8px; box-shadow: none; }
-.is-simple .m-note, .is-simple .m-notes summary, .is-simple .pending, .is-simple .hello, .is-simple .call, .is-simple .slip { font-size: 14px; }
-.is-simple .hello b { font-size: 20px; font-weight: 600; }
-.is-simple .box textarea { padding: 10px 12px; border-width: 1px; border-radius: 12px; font-size: 16px; line-height: 1.5; }
+.is-simple .prose h1 { font-size: 26px; }
+.is-simple .prose h2 { font-size: 22px; }
+.is-simple .prose h3, .is-simple .prose h4 { font-size: 19px; }
+.is-simple .prose th, .is-simple .prose td { border-width: 1px; font-size: 16px; }
+.is-simple .prose pre { border-radius: 8px; box-shadow: none; font-size: 15px; }
+.is-simple .m-note, .is-simple .m-notes summary, .is-simple .pending, .is-simple .hello, .is-simple .call, .is-simple .slip { font-size: 15px; }
+.is-simple .hello b { font-size: 22px; font-weight: 600; }
+.is-simple .box textarea { min-height: var(--bar); padding: 12px 14px; border-width: 1px; border-radius: 12px; font-size: 18px; line-height: 1.5; }
+.is-simple .box .btn { height: var(--bar); min-width: var(--bar); display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 16px; }
+.is-simple .box .send { padding: 0 18px; border-color: #c96442; color: #fff; background: #c96442; }
+.is-simple .box .btn-stop { border-color: var(--danger); background: var(--danger); filter: none; }
+.is-simple .to-bottom { bottom: calc(var(--bar) + 28px); }
 .is-simple .call, .is-simple .slip, .is-simple .level-up { border-radius: 10px; box-shadow: 0 0 0 1px var(--line); }
-.is-simple .level-up { color: var(--ink); background: var(--paper-2); font-size: 14px; }
+.is-simple .level-up { color: var(--ink); background: var(--paper-2); font-size: 15px; }
+
+.project-page { gap: 16px; overflow-y: auto; }
+.project-form { display: grid; gap: 12px; }
+.project-form label { display: grid; gap: 6px; color: var(--ink-soft); font-size: 14px; }
+.project-form input, .project-form textarea { padding: 10px 14px; border: 1px solid var(--field-line); border-radius: 12px; color: var(--ink); background: var(--field); }
+.project-form input { font: 600 24px/1.3 var(--font); }
+.project-form textarea { min-height: 160px; resize: vertical; font: 17px/1.5 var(--font); }
+.project-form :focus-visible { outline: 0; box-shadow: none; border-color: var(--ink); }
+.project-form .quiet { font-size: 14px; }
+.project-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.is-simple .plain { padding: 7px 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper-2); font: 500 15px/1.2 var(--font); }
+.is-simple .plain.is-armed { border-color: var(--danger); color: #fff; background: var(--danger); }
+.project-page .side-new { justify-self: start; align-self: flex-start; border: 1px dashed var(--field-line); }
+
+@media (max-width: 760px) { /* the sidebar sits above the chat */
+  .home.is-simple { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); padding: 0; gap: 0; }
+  .side { max-height: 38vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  .is-simple .chat { grid-column: 1; grid-row: 2; width: calc(100% - 24px); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

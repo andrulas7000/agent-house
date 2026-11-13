@@ -274,6 +274,15 @@ test('tell: Mayor is the funnel', () => {
   assert.equal(house.inbox.Tutoring.length, 30);
 });
 
+test('tell: in a chat with the owner it becomes a talk, not a note left waiting', () => {
+  const house = emptyHouse();
+  const agents = ['Mayor', 'Tutoring'];
+  const result = applyOp(house, 'Mayor', { do: 'tell', agent: 'Tutoring', text: 'Session Thursday' }, { agents, canTalk: true });
+  assert.deepEqual(result.talk, { agent: 'Tutoring', text: 'Session Thursday' });
+  assert.equal(house.inbox.Tutoring, undefined, 'nothing waits: it is talked through');
+  assert.equal(applyOp(house, 'Mayor', { do: 'tell', agent: 'Mayor', text: 'hi' }, { agents, canTalk: true }).ok, false, 'no notes to yourself');
+});
+
 test('houseBrief hands over waiting notes and shows each side how to send them', () => {
   const house = emptyHouse();
   const agents = ['Mayor', 'Tutoring'];

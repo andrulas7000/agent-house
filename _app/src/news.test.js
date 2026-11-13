@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bubbleOf, dreamOf, jobOf, moodOf, newsOf, pairUp, partyJob, routineOf, stateOf, wordsFor } from './news.js';
+import { bubbleOf, dreamOf, jobOf, moodOf, newsOf, pairUp, partyJob, routineOf, stateOf, withCompany, wordsFor } from './news.js';
 
 const agent = (over) => ({ name: 'Study', lastVisit: Date.now(), streak: 0, misses: 0, waiting: 0, today: null, visitedToday: true, ...over });
 const house = (over) => ({ today: '2026-11-09', events: [], goals: [], live: null, ...over });
@@ -11,6 +11,7 @@ test('a bubble shows the most urgent true thing', () => {
   assert.equal(bubbleOf(busy, {}, house()).text, '1 missed this week', 'notes between residents are not for the owner');
   assert.equal(bubbleOf(agent({ misses: 1 }), {}, house()).text, '1 missed this week');
   assert.equal(bubbleOf(agent(), {}, house()), null);
+  assert.equal(bubbleOf(agent({ name: 'God', lastVisit: Date.now() - 30 * 864e5 }), {}, house()), null, 'God never says how long since the last talk');
 });
 
 test('only Mayor nags about the check-in', () => {
@@ -106,4 +107,13 @@ test('chatters pair up by who really got in touch', () => {
   const exchanges = [{ from: 'Mayor', to: 'Music' }, { from: 'Music', to: 'Mayor' }, { from: 'Jobs', to: 'Engineer' }, { from: 'Mayor', to: 'Jobs' }];
   assert.deepEqual(pairUp(['Engineer', 'Jobs', 'Mayor', 'Music'], exchanges), [['Mayor', 'Music'], ['Engineer', 'Jobs']]);
   assert.deepEqual(pairUp(['Jobs', 'Money'], exchanges), [], 'no tie, no pair');
+});
+
+test('nobody chats alone in the square', () => {
+  const names = ['Engineer', 'Jobs', 'Mayor', 'Music'];
+  const exchanges = [{ from: 'Mayor', to: 'Music' }];
+  assert.deepEqual(withCompany(names, ['social', 'work', 'asleep', 'eat'], exchanges), ['stroll', 'work', 'asleep', 'eat'], 'nobody free: it goes for a walk');
+  assert.deepEqual(withCompany(names, ['social', 'jog', 'asleep', 'eat'], exchanges), ['social', 'social', 'asleep', 'eat'], 'someone free comes over');
+  assert.deepEqual(withCompany(names, ['stroll', 'stroll', 'social', 'stroll'], exchanges), ['stroll', 'stroll', 'social', 'social'], 'a real tie first');
+  assert.deepEqual(withCompany(names, ['social', 'social', 'work', 'stroll'], exchanges), ['social', 'social', 'work', 'stroll'], 'two already have each other');
 });

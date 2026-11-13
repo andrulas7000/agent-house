@@ -89,7 +89,7 @@ export const NEWS_SOURCES = NEWS_CONFIG.sections;
 export const NEWS_RULES = NEWS_CONFIG.rules ?? [];
 export const NEWS_HOSTS = [...new Set(Object.values(NEWS_SOURCES).flat())];
 const NEWS_HOUR = 6;
-const MAX_NEWS = 80;
+const MAX_NEWS = 160; // room for two full editions (~60 stories each) in one day
 
 /** The parsed URL of a real page, or null. A homepage isn't a story or an opening, so it doesn't count. */
 function pageUrl(url) {
@@ -370,8 +370,11 @@ export function applyOp(house, actor, op, { now = Date.now(), agents = [], canTa
       if (!agents.includes(op.agent)) return no(`there is no resident called ${op.agent}.`);
       if (isGod(op.agent)) return no('God only takes instructions from the owner.');
       if (!isMayor(actor) && !isMayor(op.agent)) return no(`residents talk through Mayor, so send it to Mayor to pass on to ${op.agent}.`);
+      if (op.agent === actor) return no('you can\'t write to yourself.');
       const text = tidy(op.text, MAX_NOTE);
       if (!text) return no('a note needs text.');
+      // In a chat with the owner the note becomes a chat between the two: answered now, not left waiting.
+      if (canTalk) return { ...yes(`Going to talk to ${display(op.agent)}.`), talk: { agent: op.agent, text } };
       const box = (house.inbox[op.agent] ??= []);
       if (box.length >= MAX_WAITING) return no(`${display(op.agent)} already has ${MAX_WAITING} notes waiting.`);
       box.push({ id: house.nextId++, from: actor, text, at: now });
@@ -554,6 +557,7 @@ export function houseBrief(house, name, agents, notices = [], now = Date.now(), 
       : [`{"do":"tell","agent":"${isMayor(name) ? 'name of the resident' : 'Mayor'}","text":"everything they need to know"}`]),
     '</house>',
     'In "move", leave out any field that stays the same. Only add the block when you actually mean to change something.',
+    ...(tier === 'god' ? [] : ['A "tell" sent while you talk with the owner opens a short chat: they answer right away, and you get their answer after your reply to pass on to the owner. Sent anywhere else, it waits for their next conversation.']),
     'Add "owner":true to an "add" only when you need the owner to work with you during that block: the house rings them when it starts, and when they pick up you speak first. Never for work you can do alone.',
   ].join('\n');
   const waiting = (house.inbox?.[name] ?? []).map((m) => `#${m.id} from ${display(m.from)}: ${JSON.stringify(m.text)}`).join('\n');

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { TABLES, buildIsland, dockOf, drawGod, drawIsland, houseSprite, lookOf, personSprite, plotOf, portraitUrl, seasonOf, spokeEnd, stationOf } from './art.js';
 import { islandView, shown } from './layout.js';
-import { COMMON, NEWS, REPORTER, bubbleOf, isGod, isJobs, isMayor, jobOf, moodOf, newsOf, pairUp, partyJob, reporterBubble, stateOf, wordsFor } from './news.js';
+import { COMMON, NEWS, REPORTER, bubbleOf, isGod, isJobs, isMayor, jobOf, moodOf, newsOf, pairUp, partyJob, reporterBubble, stateOf, withCompany, wordsFor } from './news.js';
 
 const MIN_RX = 322;
 const MANOR = { x: 0, y: -66, big: true };
@@ -94,11 +94,14 @@ const lapPoint = (npc) => {
 };
 const BOBBING = new Set(['bench', 'eat', 'teach', 'garden', 'ledger', 'ball']);
 
-/** Where each chatting resident stands: pairs with a real tie share a pair of facing spots, the rest take what is left. */
+/** Where each chatting resident stands: pairs share facing spots, real ties first. An odd one out joins in from a spot left. */
 function socialSeating(names, exchanges) {
   const spot = {};
   const partner = {};
-  pairUp(names, exchanges).forEach(([a, b], k) => {
+  const pairs = pairUp(names, exchanges);
+  const loose = names.filter((n) => !pairs.flat().includes(n));
+  for (let i = 0; i + 1 < loose.length; i += 2) pairs.push([loose[i], loose[i + 1]]);
+  pairs.forEach(([a, b], k) => {
     [spot[a], spot[b]] = [(2 * k) % SOCIAL_SPOTS.length, (2 * k + 1) % SOCIAL_SPOTS.length];
     [partner[a], partner[b]] = [b, a];
   });
@@ -356,7 +359,11 @@ export default function Island({ agents, live, house, active, now, phase, onGo, 
   }, [view]);
 
   const seats = house?.live?.seats ?? [];
-  const states = residents.map(({ agent }) => (house?.asleep && !live[agent.name]?.busy ? 'asleep' : stateOf(agent, live[agent.name], seats.includes(agent.name), now)));
+  const states = withCompany(
+    residents.map((r) => r.agent.name),
+    residents.map(({ agent }) => (house?.asleep && !live[agent.name]?.busy ? 'asleep' : stateOf(agent, live[agent.name], seats.includes(agent.name), now))),
+    house?.exchanges,
+  );
   const { spot: socialSpot, partner } = socialSeating(residents.filter((_, i) => states[i] === 'social').map((r) => r.agent.name), house?.exchanges);
   const freeNames = residents.filter((_, i) => FREE_FOR_VISIT.has(states[i])).map((r) => r.agent.name).join('|');
   const trip = visit && freeNames.split('|').includes(visit.from) ? visit : null;

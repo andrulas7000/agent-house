@@ -84,8 +84,10 @@ function App() {
     return list;
   }, []);
 
-  const startChat = useCallback((name) => {
+  const newIn = useRef({}); // a new conversation started inside a project, until its first message files it there
+  const startChat = useCallback((name, project) => {
     const id = crypto.randomUUID(); // it only reaches the server, and the list, with its first message
+    if (project) newIn.current[id] = project;
     setThreads((t) => ({ ...t, [id]: [] }));
     setOpenChats((o) => ({ ...o, [name]: id }));
   }, []);
@@ -164,7 +166,7 @@ function App() {
       const res = await fetch(api(name, 'chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ text, files, chat, room, call: call?.id }),
+        body: JSON.stringify({ text, files, chat, room, call: call?.id, project: newIn.current[chat] }),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -242,8 +244,9 @@ function App() {
       return 'The local server stopped responding.';
     }
   };
-  const renameChat = async (name, id, title) => {
-    const result = await changeChat(name, id, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title }) });
+  // A rename ({ title }) or a move to another project ({ project }, null for none). Returns an error message or null.
+  const patchChat = async (name, id, body) => {
+    const result = await changeChat(name, id, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     return typeof result === 'string' ? result : null;
   };
   const deleteChat = async (name, id) => {
@@ -255,6 +258,18 @@ function App() {
       else startChat(slotOf(name));
     }
     return null;
+  };
+
+  // Creates (no id), edits or deletes a project. Returns { error } or the saved project.
+  const changeProject = async (name, id, method, body) => {
+    try {
+      const res = await fetch(`${api(name, 'projects')}${id ? `/${id}` : ''}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
+      const reply = await res.json();
+      if (res.ok) await Promise.all([refresh(), loadChats(name)]);
+      return res.ok ? reply : { error: reply.error };
+    } catch {
+      return { error: 'The local server stopped responding.' };
+    }
   };
 
   // Both return an error message for the form to show, or null when it worked.
@@ -302,8 +317,11 @@ function App() {
           chatId={openChats[slotOf(current.name)]}
           loaded={Boolean(threads[openChats[slotOf(current.name)]])}
           onOpenChat={(id) => setOpenChats((o) => ({ ...o, [slotOf(current.name)]: id }))}
-          onNewChat={() => startChat(slotOf(current.name))}
-          onRenameChat={(id, title) => renameChat(current.name, id, title)}
+          onNewChat={(project) => startChat(slotOf(current.name), project)}
+          chatProject={(chats[current.name] ?? []).find((c) => c.id === openChats[slotOf(current.name)])?.project ?? newIn.current[openChats[slotOf(current.name)]] ?? null}
+          onProject={(id, method, body) => changeProject(current.name, id, method, body)}
+          onRenameChat={(id, title) => patchChat(current.name, id, { title })}
+          onMoveChat={(id, project) => patchChat(current.name, id, { project })}
           onDeleteChat={(id) => deleteChat(current.name, id)}
           live={liveNow[current.name] ?? {}}
           call={house?.calls?.find((c) => c.agent === current.name)}
@@ -315,6 +333,7 @@ function App() {
           onSend={(text, files) => send(current.name, text, files)}
           onStop={() => stop(current.name)}
           onLeave={leave}
+          onIris={iris}
         />
       )}
       {offline && <p className="offline" role="alert">The island lost its connection. Run Open Agent House.bat again and reload the page.</p>}

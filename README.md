@@ -33,16 +33,10 @@ browser (React + canvas)  ──HTTP──▶  _app/server.js (Node, 127.0.0.1 o
 
 1. Clone or download this repo anywhere. This folder is the island.
 2. Double-click `_app/Open Agent House.bat`. The first time it installs what it needs; then it builds the app, opens it in the browser and leaves a black window open: that's the server.
-3. To keep it running without the black window, use `_app/Agent House.vbs`. If it's already running it just opens the window; if not, it starts it hidden.
+3. To open it without the black window, use `_app/Agent House.vbs`. If it's already running it just opens the window; if not, it starts it hidden.
 4. For an icon on the desktop: right-click `_app/Agent House.vbs` → Show more options → Create shortcut, and move the shortcut to the desktop. In its Properties → Change Icon, pick `_app/Agent House.ico`.
 
-### Start it when the computer starts
-
-1. Right-click `_app/Agent House.vbs` → Show more options → Create shortcut.
-2. Right-click the shortcut → Properties. In Target, add ` /background` at the end, after the quotes.
-3. Press Win+R, type `shell:startup` and move the shortcut into that folder.
-
-That way the crier brings the news every morning even if you don't open anything.
+The server shuts itself down about 5 minutes after the last window closes, once nobody is working. Whatever was due while it was closed (the day's news, Sunday's meeting) happens the next time you open it.
 
 ## The island
 

@@ -96,6 +96,18 @@ export function pairUp(names, exchanges = []) {
   }
 }
 
+const FREE_TO_CHAT = new Set(['stroll', 'jog', 'play']); // leisure someone can drop to keep a neighbour company
+
+/** Nobody chats alone in the square. A lone talker brings over someone free, a real tie first, or goes for a walk instead. */
+export function withCompany(names, states, exchanges = []) {
+  const talkers = names.filter((_, i) => states[i] === 'social');
+  if (talkers.length !== 1) return states;
+  const [talker] = talkers;
+  const tie = (n) => exchanges.filter((e) => (e.from === talker && e.to === n) || (e.from === n && e.to === talker)).length;
+  const friend = names.filter((_, i) => FREE_TO_CHAT.has(states[i])).sort((a, b) => tie(b) - tie(a))[0];
+  return states.map((s, i) => (names[i] === friend ? 'social' : names[i] === talker && !friend ? 'stroll' : s));
+}
+
 /** The job being celebrated: an interview or an offer the owner set in the last few days. */
 export const partyJob = (house, now = Date.now()) => house?.jobs?.items
   ?.filter((j) => (j.status === 'interview' || j.status === 'offer') && j.changed > now - PARTY_MS)
@@ -121,6 +133,7 @@ export function bubbleOf(agent, live = {}, house, now = Date.now(), { asleep = f
   const open = agent.today?.items.find((i) => i.status === 'open');
   if (open) return { icon: 'list', text: `Next: ${open.text}` };
   if (agent.misses) return { icon: 'cloud', text: `${agent.misses} missed this week` };
+  if (isGod(agent.name)) return null; // no streak or time since the last talk for God
   if (!agent.lastVisit) return { icon: 'hi', text: 'Just moved in' };
   if (agent.streak >= GOOD_STREAK) return { icon: 'star', text: `${agent.streak}-day streak` };
   const away = Math.floor((now - agent.lastVisit) / 864e5);
